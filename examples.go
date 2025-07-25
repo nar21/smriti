@@ -4,8 +4,8 @@ package main
 
 // 'fmt' is the standard library for formatted I/O (printing output)
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -134,4 +134,3 @@ func main() {
 
 	fmt.Println("Program Ended.")
 }
-
