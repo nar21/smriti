@@ -6,6 +6,7 @@ import (
 	"log"
 	"db-archive/database"
 	"db-archive/extract"
+	"db-archive/parser"
 )
 
 type Aircraft struct {
@@ -47,12 +48,18 @@ func get_aircraft(db *sql.DB) {
 func main() {
     extract.HelloTest()
 
+    var ap, err2 = parser.LoadArchivalPlan("archival-plan/aircraft.yaml")
+    if err2 != nil {
+        log.Fatal("Could not load archival plan")
+    }
+    fmt.Println(ap.DatabaseCredential)
+
 	// Database connection parameters
-	host := "localhost"
-	port := 54321
-	user := "airline"
-	password := "airline"
-	dbname := "airline"
+	host := ap.DatabaseCredential.Host
+	port := ap.DatabaseCredential.Port
+	user := ap.DatabaseCredential.User
+	password := ap.DatabaseCredential.Password
+	dbname := ap.DatabaseCredential.DBName
 
 	// Get a DB connection object from database package
 	db, err := database.ConnectPostgres(host, port, user, password, dbname)

@@ -1,0 +1,8 @@
+databaseID: "airline"
+query:
+  filterColumn: "created_at"
+  filterColumnType: "date"
+  filterColumnMin: "2023-01-01"
+  filterColumnMax: "2023-12-31"
+batchStep: 7  # Step size in days (because filterColumnType is "date")
+workers: 4    # Number of parallel workers
