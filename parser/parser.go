@@ -7,11 +7,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+
 type ArchivalPlanQuery struct {
-   FilterColumn     string `yaml:"filterColumn"`
-	FilterColumnType string `yaml:"filterColumnType"` // "int" or "date"
-	FilterColumnMin  string `yaml:"filterColumnMin"`  // Parse this variable according to FilterColumnType
-	FilterColumnMax  string `yaml:"filterColumnMax"`  // Parse this variable according to FilterColumnType
+    Table           string `yaml:"table"`
+    BatchColumn     string `yaml:"batchColumn"`
+	BatchColumnType string `yaml:"batchColumnType"` // "int" or "date"
+// 	BatchColumnMin  string `yaml:"batchColumnMin"`  // Parse this variable according to FilterColumnType
+// 	BatchColumnMax  string `yaml:"batchColumnMax"`  // Parse this variable according to FilterColumnType
+	FilterConditions []string `yaml:"filterConditions"` // can this be replaced with a struct, key/operator/value?
 }
 type DBCredential struct {
     Host string `yaml:"host"`

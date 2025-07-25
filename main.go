@@ -5,6 +5,7 @@ import (
 	"db-archive/database"
 	"db-archive/extract"
 	"db-archive/parser"
+	"db-archive/sqlgen"
 	"fmt"
 	"log"
 )
@@ -68,7 +69,8 @@ func main() {
 	}
 	defer db.Close() // Ensure DB connection is closed when done
 
-	var query = "SELECT * FROM flights;"
+    query := sqlgen.GenerateSQL(ap)
+    fmt.Println("QUERY: ", query)
 
 	data, columns, err := extract.QueryDynamic(db, query)
 	if err != nil {
