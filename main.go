@@ -1,7 +1,7 @@
 package main
 
 import (
-//	"database/sql"
+	"database/sql"
 	"fmt"
 	"log"
 	"db-archive/database"
@@ -14,23 +14,7 @@ type Aircraft struct {
     Range int
 }
 
-func main() {
-    extract.HelloTest()
-
-	// Database connection parameters
-	host := "localhost"
-	port := 54321
-	user := "airline"
-	password := "airline"
-	dbname := "airline"
-
-	// Get a DB connection object from database package
-	db, err := database.ConnectPostgres(host, port, user, password, dbname)
-	if err != nil {
-		log.Fatal("Failed to connect to DB:", err)
-	}
-	defer db.Close() // Ensure DB connection is closed when done
-
+func get_aircraft(db *sql.DB) {
     rows, err := db.Query("SELECT aircraft_code, model, range FROM aircrafts_data;")
     if err != nil {
         log.Fatal("Failed to execute query:", err)
@@ -58,6 +42,39 @@ func main() {
     for _, a := range aircrafts {
         fmt.Printf("Aircraft: Code=%s, Model=%s, Range=%d\n", a.Code, a.Model, a.Range)
     }
+}
+
+func main() {
+    extract.HelloTest()
+
+	// Database connection parameters
+	host := "localhost"
+	port := 54321
+	user := "airline"
+	password := "airline"
+	dbname := "airline"
+
+	// Get a DB connection object from database package
+	db, err := database.ConnectPostgres(host, port, user, password, dbname)
+	if err != nil {
+		log.Fatal("Failed to connect to DB:", err)
+	}
+	defer db.Close() // Ensure DB connection is closed when done
+
+    var query = "SELECT * FROM flights;"
+
+	data, columns, err := extract.QueryDynamic(db, query)
+	if err != nil {
+		log.Fatal("Query failed:", err)
+	}
+
+	// Export to CSV
+	err = extract.WriteCSV("output.csv", data, columns)
+	if err != nil {
+		log.Fatal("Failed to write CSV:", err)
+	}
+
+	fmt.Println("CSV Exported Successfully!")
 
 }
 
