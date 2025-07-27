@@ -1,55 +1,89 @@
 package main
 
 import (
-	"database/sql"
 	"db-archive/database"
 	"db-archive/extract"
 	"db-archive/parser"
 	"db-archive/sqlgen"
+	"db-archive/compress"
+	"database/sql"
 	"fmt"
 	"log"
+	"crypto/rand"
+	"os"
+	"time"
 )
 
-type Aircraft struct {
-	Code  string
-	Model string
-	Range int
+func launchArchivalWorker(query string, db *sql.DB, workerID string) {
+    fmt.Println("WorkerID: ", workerID)
+    data, columns, err := extract.QueryDynamic(db, query)
+	if err != nil {
+		log.Fatal("Query failed:", err)
+	}
+
+	// Export to CSV
+	err = extract.WriteCSV("output.csv", data, columns)
+	if err != nil {
+		log.Fatal("Failed to write CSV:", err)
+	}
+
+	fmt.Println("CSV Exported Successfully!")
+
+	err = compress.CompressFile("output.csv")
+	if err != nil {
+        fmt.Println("Compression failed:", err)
+    } else {
+        fmt.Println("File compressed successfully!")
+    }
 }
 
-func get_aircraft(db *sql.DB) {
-	rows, err := db.Query("SELECT aircraft_code, model, range FROM aircrafts_data;")
-	if err != nil {
-		log.Fatal("Failed to execute query:", err)
-	}
-	defer rows.Close()
+func CreateDirIfNotExist(dir string) error {
+    // Check if directory exists
+    if _, err := os.Stat(dir); os.IsNotExist(err) {
+        // Directory does not exist, create it (including parents)
+        err := os.MkdirAll(dir, 0755) // 0755 is typical permission
+        if err != nil {
+            return err
+        }
+        fmt.Println("Directory created:", dir)
+    } else {
+        fmt.Println("Directory already exists:", dir)
+    }
+    return nil
+}
 
-	var aircrafts []Aircraft
+// GenerateDateHexString returns the current date in YYYYMMDD format appended with a random 6-hex-character string.
+func GenerateExecutionID() (string, error) {
+    // Get current date in YYYYMMDD format
+    dateStr := time.Now().Format("2006-01-02")
 
-	// Loop through each row
-	for rows.Next() {
-		var aircraft Aircraft
-		err := rows.Scan(&aircraft.Code, &aircraft.Model, &aircraft.Range)
-		if err != nil {
-			log.Fatal("Failed to scan row:", err)
-		}
-		aircrafts = append(aircrafts, aircraft)
-	}
+    // Generate 3 random bytes (6 hex characters)
+    randomBytes := make([]byte, 3)
+    _, err := rand.Read(randomBytes)
+    if err != nil {
+        return "", err
+    }
 
-	// Check for errors after loop ends
-	if err = rows.Err(); err != nil {
-		log.Fatal("Rows iteration error:", err)
-	}
+    // Format bytes as hex string
+    randomHex := fmt.Sprintf("%06x", randomBytes)
 
-	// Now 'aircrafts' slice has all the rows
-	for _, a := range aircrafts {
-		fmt.Printf("Aircraft: Code=%s, Model=%s, Range=%d\n", a.Code, a.Model, a.Range)
-	}
+    return fmt.Sprintf("%s-%s", dateStr, randomHex), nil
 }
 
 func main() {
-	extract.HelloTest()
 
-	var ap, err2 = parser.LoadArchivalPlan("archival-plan/aircraft.yaml")
+    workDir := "./workDir"
+    // Create working directory if it does not exist
+    CreateDirIfNotExist(workDir)
+
+    archivalPlanName := os.Getenv("ARCHIVAL_PLAN")
+    if archivalPlanName == "" {
+        log.Fatal("Could not find ARCHIVAL_PLAN env variable")
+    }
+    archivalPlanFilepath := fmt.Sprintf("archival-plan/%s.yaml", archivalPlanName)
+    fmt.Println("Loading archival plan at ", archivalPlanFilepath)
+    var ap, err2 = parser.LoadArchivalPlan(archivalPlanFilepath)
+
 	if err2 != nil {
 		log.Fatal("Could not load archival plan")
 	}
@@ -71,18 +105,11 @@ func main() {
 
     query := sqlgen.GenerateSQL(ap)
     fmt.Println("QUERY: ", query)
-
-	data, columns, err := extract.QueryDynamic(db, query)
-	if err != nil {
-		log.Fatal("Query failed:", err)
+    executionID, err := GenerateExecutionID()
+    if err != nil {
+		log.Fatal("Could not generate Execution ID", err)
 	}
 
-	// Export to CSV
-	err = extract.WriteCSV("output.csv", data, columns)
-	if err != nil {
-		log.Fatal("Failed to write CSV:", err)
-	}
-
-	fmt.Println("CSV Exported Successfully!")
-
+    fmt.Println("ExecutionID: ", executionID)
+    launchArchivalWorker(query, db, "0")
 }
