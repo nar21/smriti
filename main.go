@@ -6,6 +6,7 @@ import (
 	"db-archive/parser"
 	"db-archive/sqlgen"
 	"db-archive/compress"
+	"db-archive/objectStorage"
 	"database/sql"
 	"fmt"
 	"log"
@@ -14,26 +15,51 @@ import (
 	"time"
 )
 
-func launchArchivalWorker(query string, db *sql.DB, workerID string) {
+// Declare global variables
+var workDir string
+
+// Function that will carry out the archival process. To be used in a Go-routine.
+func launchArchivalWorker(query string, db *sql.DB, workerID string, executionID string) {
     fmt.Println("WorkerID: ", workerID)
+
+    threadWorkingDir := fmt.Sprintf("%s/%s/%s", workDir, executionID, workerID)
+    fmt.Println("Execution Directory: ", threadWorkingDir)
+    CreateDirIfNotExist(threadWorkingDir)
+
     data, columns, err := extract.QueryDynamic(db, query)
 	if err != nil {
 		log.Fatal("Query failed:", err)
 	}
 
 	// Export to CSV
-	err = extract.WriteCSV("output.csv", data, columns)
+	uncompressedFilepath := fmt.Sprintf("%s/%s", threadWorkingDir, "output.txt")
+	err = extract.WriteCSV(uncompressedFilepath, data, columns)
 	if err != nil {
 		log.Fatal("Failed to write CSV:", err)
 	}
 
 	fmt.Println("CSV Exported Successfully!")
 
-	err = compress.CompressFile("output.csv")
+    compressedFilePath := uncompressedFilepath + ".gz"
+	err = compress.CompressFile(uncompressedFilepath, compressedFilePath)
 	if err != nil {
         fmt.Println("Compression failed:", err)
     } else {
         fmt.Println("File compressed successfully!")
+    }
+
+    var driver objectStorage.ObjectStorageDriver
+    storageDriver := "s3"
+
+    switch storageDriver {
+        case "s3":
+            driver = &objectStorage.S3Driver{}
+    }
+
+    err = driver.Upload(compressedFilePath)
+    if err != nil {
+        log.Fatal("Error uploading file: %v\n", err)
+
     }
 }
 
@@ -72,7 +98,7 @@ func GenerateExecutionID() (string, error) {
 
 func main() {
 
-    workDir := "./workDir"
+    workDir = "./workDir"
     // Create working directory if it does not exist
     CreateDirIfNotExist(workDir)
 
@@ -111,5 +137,5 @@ func main() {
 	}
 
     fmt.Println("ExecutionID: ", executionID)
-    launchArchivalWorker(query, db, "0")
+    launchArchivalWorker(query, db, "0", executionID)
 }

@@ -8,7 +8,7 @@ import (
 )
 
 // CompressFile compresses the given filePath and creates a .zip file in the same directory.
-func CompressFile(filePath string) error {
+func CompressFile(filePath string, gzPath string) error {
    // Open source file
     inFile, err := os.Open(filePath)
     if err != nil {
@@ -17,7 +17,6 @@ func CompressFile(filePath string) error {
     defer inFile.Close()
 
     // Create destination file
-    gzPath := filePath + ".gz"
     if strings.HasSuffix(strings.ToLower(filePath), ".gz") {
         gzPath = filePath // Prevent double .gz
     }
