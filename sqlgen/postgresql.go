@@ -8,54 +8,56 @@ import (
     "strconv"
 )
 
+type PostgresqlSQLGenerator struct{}
 
-
-func GenerateSQL(ap *parser.ArchivalPlan) []string {
-
+func (s *PostgresqlSQLGenerator) GenerateSQL(ap *parser.ArchivalPlan) []string {
     var sql []string;
     whereConditionsStr := strings.Join(ap.Query.FilterConditions, " AND ")
 
-    batchColumn := ap.Query.BatchColumn
-    batchColumnType := ap.Query.BatchColumnType
-    batchStep := ap.Query.BatchStep
+    if ap.Query.BatchingEnabled {
+        batchColumn := ap.Query.BatchColumn
+        batchColumnType := ap.Query.BatchColumnType
+        batchStep := ap.Query.BatchStep
 
-    if batchColumnType == "int" {
-        minVal, err := strconv.Atoi(getMinBatchColumnValue(ap))
-        if err != nil {
-            fmt.Println("Could not cast string to int")
-        }
-        maxVal, err := strconv.Atoi(getMaxBatchColumnValue(ap))
-        if err != nil {
-            fmt.Println("Could not cast string to int")
-        }
-
-        var batchWhereConditions []string
-        minTmp := minVal
-        for true {
-            //fmt.Println(minTmp, minTmp + batchStep)
-            whereConTmp := fmt.Sprintf(
-                "%s >= %d AND %s < %d",
-                batchColumn,
-                minTmp,
-                batchColumn,
-                min(minTmp + batchStep, maxVal), // Do not exceed maxVal
-            )
-            batchWhereConditions = append(batchWhereConditions, whereConTmp)
-            minTmp = minTmp + batchStep
-            //break
-            if minTmp > maxVal{
-                break
+        if batchColumnType == "int" {
+            minVal, err := strconv.Atoi(getMinBatchColumnValue(ap))
+            if err != nil {
+                fmt.Println("Could not cast string to int")
+            }
+            maxVal, err := strconv.Atoi(getMaxBatchColumnValue(ap))
+            if err != nil {
+                fmt.Println("Could not cast string to int")
             }
 
-        }
+            var batchWhereConditions []string
+            minTmp := minVal
+            for true {
+                //fmt.Println(minTmp, minTmp + batchStep)
+                whereConTmp := fmt.Sprintf(
+                    "%s >= %d AND %s < %d",
+                    batchColumn,
+                    minTmp,
+                    batchColumn,
+                    min(minTmp + batchStep, maxVal), // Do not exceed maxVal
+                )
+                batchWhereConditions = append(batchWhereConditions, whereConTmp)
+                minTmp = minTmp + batchStep
+                //break
+                if minTmp > maxVal{
+                    break
+                }
 
-        for i := 0; i < len(batchWhereConditions); i++ {
-            sqlTmp := fmt.Sprintf("SELECT * from %s WHERE %s AND %s;", ap.Query.Table, whereConditionsStr, batchWhereConditions[i])
-            //fmt.Println(sqlTmp)
-            sql = append(sql, sqlTmp)
+            }
+
+            for i := 0; i < len(batchWhereConditions); i++ {
+                sqlTmp := fmt.Sprintf("SELECT * from %s WHERE %s AND %s;", ap.Query.Table, whereConditionsStr, batchWhereConditions[i])
+                //fmt.Println(sqlTmp)
+                sql = append(sql, sqlTmp)
+            }
         }
+    } else {
+        sql = append(sql, fmt.Sprintf("SELECT * from %s WHERE %s;", ap.Query.Table, whereConditionsStr))
     }
-
     return sql;
 }
 

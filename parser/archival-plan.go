@@ -10,6 +10,7 @@ import (
 
 type ArchivalPlanQuery struct {
     Table           string `yaml:"table"`
+    BatchingEnabled bool `yaml:"batchingEnabled"`
     BatchColumn     string `yaml:"batchColumn"`
 	BatchColumnType string `yaml:"batchColumnType"` // "int" or "date"
 	BatchStep  int               `yaml:"batchStep"` // number if FilterColumnType is int, days if date

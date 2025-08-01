@@ -13,6 +13,7 @@ import (
 	"crypto/rand"
 	"os"
 	"time"
+	"strconv"
 )
 
 // Declare global variables
@@ -101,7 +102,6 @@ func GenerateExecutionID() (string, error) {
 }
 
 func main() {
-
     workDir = "./workDir"
     // Create working directory if it does not exist
     CreateDirIfNotExist(workDir)
@@ -133,13 +133,26 @@ func main() {
 	}
 	defer db.Close() // Ensure DB connection is closed when done
 
-    query := sqlgen.GenerateSQL(ap)[0]
-    //
+    // Call the appropriate DB plugin to generate SQL queries
+    var sqlGenerator sqlgen.SQLGeneratorDriver
+    sqlGenName := "postgresql"
+
+    switch sqlGenName {
+        case "postgresql":
+            sqlGenerator = &sqlgen.PostgresqlSQLGenerator{}
+    }
+
+    // Generic function call to the interface
+    queryList := sqlGenerator.GenerateSQL(ap)
     executionID, err := GenerateExecutionID()
     if err != nil {
 		log.Fatal("Could not generate Execution ID", err)
 	}
-
     fmt.Println("ExecutionID: ", executionID)
-    launchArchivalWorker(query, db, "0", executionID)
+
+    // Execute all the queries through workers
+    for i := 0; i < len(queryList); i ++ {
+        query := queryList[i]
+        launchArchivalWorker(query, db, strconv.Itoa(i), executionID)
+    }
 }

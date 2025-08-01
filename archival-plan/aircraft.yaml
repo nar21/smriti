@@ -1,6 +1,7 @@
 databaseID: "airline"
 query:
   table: "flights"
+  batchingEnabled: false
   batchColumn: "flight_id"
   batchColumnType: "int"
   batchStep: 10
