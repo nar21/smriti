@@ -28,18 +28,14 @@ func GenerateExecutionID() (string, error) {
 
     // Format bytes as hex string
     randomHex := fmt.Sprintf("%06x", randomBytes)
-
     return fmt.Sprintf("%s-%s", dateStr, randomHex), nil
 }
 
 // Function that will carry out the archival process. To be used in a Go-routine.
-//func launchArchivalWorker(query string, db *sql.DB, workerID string, executionID string) {
 func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
     threadIndex := workerID
     dryRun := ap.RuntimeParameters.DryRun
-
     fmt.Println("WorkerID: ", workerID)
-
     query := ap.RuntimeParameters.Queries[threadIndex]
 
     threadWorkingDir := fmt.Sprintf("%s/%s/%s", workDir, ap.RuntimeParameters.ExecutionID, strconv.Itoa(workerID))
@@ -86,9 +82,8 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
         } else {
             fmt.Println("File compressed successfully!")
         }
-
         var driver objectStorage.ObjectStorageDriver
-        storageDriver := "azureblob"
+        storageDriver := "s3"
 
         switch storageDriver {
             case "s3":
@@ -100,7 +95,6 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
         err = driver.Upload(compressedFilePath)
         if err != nil {
             log.Fatal("Error uploading file: %v\n", err)
-
         }
     }
 }

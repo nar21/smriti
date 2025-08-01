@@ -7,6 +7,6 @@ import (
 type AzureBlobDriver struct {}
 
 func (s *AzureBlobDriver) Upload (filePath string) error {
-    fmt.Println("Uploading using Azure Blob", filePath)
+    fmt.Println("Uploading using Azure Blob: ", filePath)
     return nil
 }

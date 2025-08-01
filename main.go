@@ -17,7 +17,6 @@ func main() {
     dryRun := flag.Bool("dry-run", false, "Dry run without executing queries or creating files")
 	flag.Parse()
 
-
     // Create working directory if it does not exist
     workDir = "./workDir"
     CreateDirIfNotExist(workDir)
@@ -44,8 +43,6 @@ func main() {
     ap.RuntimeParameters.ExecutionID = executionID
     fmt.Println("ExecutionID: ", ap.RuntimeParameters.ExecutionID)
 
-
-
     // Call the appropriate DB plugin to generate SQL queries
     var sqlGenerator sqlgen.SQLGeneratorDriver
     sqlGenName := "postgresql"
@@ -60,9 +57,8 @@ func main() {
 
     // Execute all the queries through workers
     for i := 0; i < len(ap.RuntimeParameters.Queries); i++ {
-        if  !ap.RuntimeParameters.DryRun {
 
-        }
         launchArchivalWorker(i, ap)
     }
+
 }

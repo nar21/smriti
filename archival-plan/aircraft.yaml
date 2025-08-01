@@ -9,5 +9,7 @@ query:
   batchColumnMax: 90
   filterConditions:
     - "departure_airport = 'DME'"
+  runtimeParameters:
+    dryRun: true
 
 workers: 4    # Number of parallel workers
