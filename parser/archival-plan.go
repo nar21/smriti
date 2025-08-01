@@ -5,6 +5,7 @@ import (
     "fmt"
     "os"
 	"gopkg.in/yaml.v3"
+	"database/sql"
 )
 
 
@@ -29,6 +30,12 @@ type DBCredential struct {
 type CredentialFile struct {
     Databases map[string]DBCredential
 }
+type RuntimeParams struct {
+    DryRun     bool
+    ExecutionID string
+    DatabaseConnections []*sql.DB
+    Queries []string
+}
 
 type ArchivalPlan struct {
    DatabaseID string            `yaml:"databaseID"`
@@ -36,6 +43,7 @@ type ArchivalPlan struct {
 
 	Workers    int               `yaml:"workers"`   // number of parallel workers
 	DatabaseCredential DBCredential
+	RuntimeParameters RuntimeParams
 }
 
 
