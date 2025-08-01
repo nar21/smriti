@@ -3,9 +3,10 @@ query:
   table: "flights"
   batchColumn: "flight_id"
   batchColumnType: "int"
-  batchColumnMin: "10"
-  batchColumnMax: "100"
+  batchStep: 10
+  batchColumnMin: 10
+  batchColumnMax: 90
   filterConditions:
-    - "flight_id < 90"
-batchStep: 10
+    - "departure_airport = 'DME'"
+
 workers: 4    # Number of parallel workers

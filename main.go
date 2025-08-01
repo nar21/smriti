@@ -26,6 +26,8 @@ func launchArchivalWorker(query string, db *sql.DB, workerID string, executionID
     fmt.Println("Execution Directory: ", threadWorkingDir)
     CreateDirIfNotExist(threadWorkingDir)
 
+    fmt.Println("Executing query: ", query)
+
     data, columns, err := extract.QueryDynamic(db, query)
 	if err != nil {
 		log.Fatal("Query failed:", err)
@@ -49,11 +51,13 @@ func launchArchivalWorker(query string, db *sql.DB, workerID string, executionID
     }
 
     var driver objectStorage.ObjectStorageDriver
-    storageDriver := "s3"
+    storageDriver := "azureblob"
 
     switch storageDriver {
         case "s3":
             driver = &objectStorage.S3Driver{}
+        case "azureblob":
+            driver = &objectStorage.AzureBlobDriver{}
     }
 
     err = driver.Upload(compressedFilePath)
@@ -129,8 +133,8 @@ func main() {
 	}
 	defer db.Close() // Ensure DB connection is closed when done
 
-    query := sqlgen.GenerateSQL(ap)
-    fmt.Println("QUERY: ", query)
+    query := sqlgen.GenerateSQL(ap)[0]
+    //
     executionID, err := GenerateExecutionID()
     if err != nil {
 		log.Fatal("Could not generate Execution ID", err)

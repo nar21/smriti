@@ -12,8 +12,9 @@ type ArchivalPlanQuery struct {
     Table           string `yaml:"table"`
     BatchColumn     string `yaml:"batchColumn"`
 	BatchColumnType string `yaml:"batchColumnType"` // "int" or "date"
-// 	BatchColumnMin  string `yaml:"batchColumnMin"`  // Parse this variable according to FilterColumnType
-// 	BatchColumnMax  string `yaml:"batchColumnMax"`  // Parse this variable according to FilterColumnType
+	BatchStep  int               `yaml:"batchStep"` // number if FilterColumnType is int, days if date
+	BatchColumnMin  string `yaml:"batchColumnMin"`  // Parse this variable according to FilterColumnType
+	BatchColumnMax  string `yaml:"batchColumnMax"`  // Parse this variable according to FilterColumnType
 	FilterConditions []string `yaml:"filterConditions"` // can this be replaced with a struct, key/operator/value?
 }
 type DBCredential struct {
@@ -31,7 +32,7 @@ type CredentialFile struct {
 type ArchivalPlan struct {
    DatabaseID string            `yaml:"databaseID"`
 	Query      ArchivalPlanQuery `yaml:"query"`
-	BatchStep  int               `yaml:"batchStep"` // number if FilterColumnType is int, days if date
+
 	Workers    int               `yaml:"workers"`   // number of parallel workers
 	DatabaseCredential DBCredential
 }
