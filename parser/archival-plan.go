@@ -43,6 +43,9 @@ type ArchiveParameters struct {
 		Region     string `yaml:"region"`
 	}
 }
+type CleanupParameters struct {
+	Enabled bool `yaml:"enabled"`
+} 
 
 type ArchivalPlan struct {
 	DatabaseID string            `yaml:"databaseID"`
@@ -52,6 +55,7 @@ type ArchivalPlan struct {
 	DatabaseCredential DBCredential
 	RuntimeParameters  RuntimeParams
 	ArchiveStorage     ArchiveParameters `yaml:"archiveStorage"`
+	Cleanup			   CleanupParameters `yaml:"cleanup"`
 }
 
 func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {

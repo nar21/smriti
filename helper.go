@@ -127,6 +127,14 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 		if err != nil {
 			log.Fatal("Error uploading file", err)
 		}
+
+		if ap.Cleanup.Enabled {
+			fmt.Printf("Deleting files: %s and %s\n", uncompressedFilepath, compressedFilePath)
+			os.Remove(uncompressedFilepath)
+			os.Remove(compressedFilePath)
+		} else {
+			fmt.Println("Cleanup not enabled, files retained.")
+		}
 	}
 }
 

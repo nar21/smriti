@@ -14,5 +14,7 @@ archiveStorage:
   bucket:
     bucketName: "nar21-lab"
     region: "ap-south-1"
+cleanup:
+  enabled: true
 
 workers: 4    # Number of parallel workers
