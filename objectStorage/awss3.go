@@ -36,7 +36,6 @@ func (s *S3Driver) Upload(filePath string, remoteFilePath string) error {
 		return err
 	}
 	defer file.Close()
-	fmt.Println(s.Bucket, remoteFilePath)
 	fmt.Println("S3 FilePath: ", remoteFilePath)
 	_, err = s.Client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(s.Bucket),

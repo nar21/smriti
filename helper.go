@@ -75,9 +75,20 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 		user := ap.DatabaseCredential.User
 		password := ap.DatabaseCredential.Password
 		dbname := ap.DatabaseCredential.DBName
+		dbEngine := ap.DatabaseCredential.Engine
 
-		// Get a DB connection object from database package
-		db, err := database.ConnectPostgres(host, port, user, password, dbname)
+		fmt.Printf("Connecting to %s database \"%s\" at %s:%d\n", dbEngine, dbname, host, port)
+		var dbDriver database.DatabaseDriver
+
+		switch dbEngine {
+		case "postgres":
+			dbDriver = &database.PostgresDriver{}
+		default:
+			log.Fatal("Unsupported database engine:", dbEngine)
+		}
+
+		// Establish a connection to the database
+		db, err := dbDriver.GetDatabaseConnection(host, port, user, password, dbname)
 		if err != nil {
 			log.Fatal("Failed to connect to DB:", err)
 		}
@@ -109,7 +120,7 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 		// Initialize the object storage driver based on the archival plan
 		var driver objectStorage.ObjectStorageDriver
 		storageDriver := "s3"
-		fmt.Println("bucket name: ", ap.ArchiveStorage.Bucket.BucketName)
+
 		switch storageDriver {
 		case "s3":
 			s3Driver, err := objectStorage.NewS3Driver(

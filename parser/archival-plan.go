@@ -19,6 +19,7 @@ type ArchivalPlanQuery struct {
 	FilterConditions []string `yaml:"filterConditions"` // can this be replaced with a struct, key/operator/value?
 }
 type DBCredential struct {
+	Engine   string `yaml:"engine"`
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`
 	User     string `yaml:"user"`
