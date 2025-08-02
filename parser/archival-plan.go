@@ -51,7 +51,7 @@ type ArchivalPlan struct {
 	Workers            int `yaml:"workers"` // number of parallel workers
 	DatabaseCredential DBCredential
 	RuntimeParameters  RuntimeParams
-	Archive            ArchiveParameters
+	ArchiveStorage     ArchiveParameters `yaml:"archiveStorage"`
 }
 
 func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {

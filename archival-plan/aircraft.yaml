@@ -1,4 +1,4 @@
-databaseID: "airline"
+databaseID: "airline-rds"
 query:
   table: "flights"
   batchingEnabled: false
@@ -9,9 +9,7 @@ query:
   batchColumnMax: 90
   filterConditions:
     - "departure_airport = 'DME'"
-  runtimeParameters:
-    dryRun: false
-archive:
+archiveStorage:
   type: "s3"
   bucket:
     bucketName: "nar21-lab"

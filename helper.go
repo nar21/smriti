@@ -40,19 +40,33 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 	query := ap.RuntimeParameters.Queries[threadIndex]
 
 	threadWorkingDir := fmt.Sprintf(
-		"%s/%s/%s",
+		"%s/%s",
 		path.Join(workDir),
 		ap.RuntimeParameters.ExecutionID,
-		strconv.Itoa(workerID),
 	)
 	fmt.Println("Execution Directory: ", threadWorkingDir)
 	CreateDirIfNotExist(threadWorkingDir)
 
 	fmt.Println("Executing query: ", query)
-	uncompressedFilepath := fmt.Sprintf("%s/%s", threadWorkingDir, "output.txt")
+	uncompressedFilepath := fmt.Sprintf(
+		"%s/output-%s.txt",
+		threadWorkingDir,
+		strconv.Itoa(workerID),
+	)
+
 	compressedFilePath := uncompressedFilepath + ".gz"
 	fmt.Println("Plaintext filepath: ", uncompressedFilepath)
 	fmt.Println("Compressed filepath: ", compressedFilePath)
+
+	archiveFilePath := fmt.Sprintf(
+		"uploads/%s/%s/%s/%s/%s",
+		ap.DatabaseID,
+		ap.DatabaseCredential.DBName,
+		ap.Query.Table,
+		ap.RuntimeParameters.ExecutionID,
+		path.Base(compressedFilePath),
+	)
+	fmt.Println("Archive File Path: ", archiveFilePath)
 
 	if !dryRun {
 		// Database connection parameters
@@ -95,10 +109,12 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 		// Initialize the object storage driver based on the archival plan
 		var driver objectStorage.ObjectStorageDriver
 		storageDriver := "s3"
-
+		fmt.Println("bucket name: ", ap.ArchiveStorage.Bucket.BucketName)
 		switch storageDriver {
 		case "s3":
-			s3Driver, err := objectStorage.NewS3Driver(ap.Archive.Bucket.BucketName)
+			s3Driver, err := objectStorage.NewS3Driver(
+				ap.ArchiveStorage.Bucket.BucketName,
+			)
 			if err != nil {
 				fmt.Println("Could not create S3 driver:", err)
 			}
@@ -107,7 +123,7 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 			driver = &objectStorage.AzureBlobDriver{}
 		}
 
-		err = driver.Upload(compressedFilePath)
+		err = driver.Upload(compressedFilePath, archiveFilePath)
 		if err != nil {
 			log.Fatal("Error uploading file", err)
 		}

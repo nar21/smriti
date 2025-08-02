@@ -30,18 +30,17 @@ func NewS3Driver(bucket string) (*S3Driver, error) {
 }
 
 // Upload uploads a file to the configured S3 bucket.
-func (s *S3Driver) Upload(filePath string) error {
+func (s *S3Driver) Upload(filePath string, remoteFilePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-
-	key := fmt.Sprintf("uploads/%s", filePath)
-	fmt.Println("S3 Key: ", key)
+	fmt.Println(s.Bucket, remoteFilePath)
+	fmt.Println("S3 FilePath: ", remoteFilePath)
 	_, err = s.Client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(s.Bucket),
-		Key:    aws.String(key),
+		Key:    aws.String(remoteFilePath),
 		Body:   file,
 		ACL:    types.ObjectCannedACLPrivate,
 	})

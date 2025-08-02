@@ -1,5 +1,5 @@
 package objectStorage
 
 type ObjectStorageDriver interface {
-    Upload(filePath string) error
+    Upload(filePath string, remoteFilePath string) error
 }
