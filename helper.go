@@ -88,12 +88,17 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 		} else {
 			fmt.Println("File compressed successfully!")
 		}
+
+		// Upload compressed file to object storage
+		fmt.Println("Uploading file to object storage...")
+
+		// Initialize the object storage driver based on the archival plan
 		var driver objectStorage.ObjectStorageDriver
 		storageDriver := "s3"
 
 		switch storageDriver {
 		case "s3":
-			s3Driver, err := objectStorage.NewS3Driver(ap.Archive.S3.Bucket)
+			s3Driver, err := objectStorage.NewS3Driver(ap.Archive.Bucket.BucketName)
 			if err != nil {
 				fmt.Println("Could not create S3 driver:", err)
 			}

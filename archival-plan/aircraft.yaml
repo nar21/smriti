@@ -13,8 +13,8 @@ query:
     dryRun: false
 archive:
   type: "s3"
-  s3:
-    bucket: "nar21-lab"
+  bucket:
+    bucketName: "nar21-lab"
     region: "ap-south-1"
 
 workers: 4    # Number of parallel workers

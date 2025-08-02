@@ -37,10 +37,10 @@ type RuntimeParams struct {
 }
 
 type ArchiveParameters struct {
-	Type string `yaml:"type"`
-	S3   struct {
-		Bucket string `yaml:"bucket"`
-		Region string `yaml:"region"`
+	Type   string `yaml:"type"`
+	Bucket struct {
+		BucketName string `yaml:"bucketName"`
+		Region     string `yaml:"region"`
 	}
 }
 
