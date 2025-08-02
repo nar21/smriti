@@ -1,53 +1,61 @@
 package parser
 
-
 import (
-    "fmt"
-    "os"
-	"gopkg.in/yaml.v3"
 	"database/sql"
+	"fmt"
+	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
-
 type ArchivalPlanQuery struct {
-    Table            string     `yaml:"table"`
-    BatchingEnabled  bool       `yaml:"batchingEnabled"`
-    BatchColumn      string     `yaml:"batchColumn"`
-	BatchColumnType  string     `yaml:"batchColumnType"` // "int" or "date"
-	BatchStep        int        `yaml:"batchStep"` // number if FilterColumnType is int, days if date
-	BatchColumnMin   string     `yaml:"batchColumnMin"`  // Parse this variable according to FilterColumnType
-	BatchColumnMax   string     `yaml:"batchColumnMax"`  // Parse this variable according to FilterColumnType
-	FilterConditions []string   `yaml:"filterConditions"` // can this be replaced with a struct, key/operator/value?
+	Table            string   `yaml:"table"`
+	BatchingEnabled  bool     `yaml:"batchingEnabled"`
+	BatchColumn      string   `yaml:"batchColumn"`
+	BatchColumnType  string   `yaml:"batchColumnType"`  // "int" or "date"
+	BatchStep        int      `yaml:"batchStep"`        // number if FilterColumnType is int, days if date
+	BatchColumnMin   string   `yaml:"batchColumnMin"`   // Parse this variable according to FilterColumnType
+	BatchColumnMax   string   `yaml:"batchColumnMax"`   // Parse this variable according to FilterColumnType
+	FilterConditions []string `yaml:"filterConditions"` // can this be replaced with a struct, key/operator/value?
 }
 type DBCredential struct {
-    Host     string `yaml:"host"`
-    Port     int    `yaml:"port"`
-    User     string `yaml:"user"`
-    Password string `yaml:"password"`
-    DBName   string `yaml:"dbname"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	DBName   string `yaml:"dbname"`
 }
 
 type CredentialFile struct {
-    Databases map[string]DBCredential
+	Databases map[string]DBCredential
 }
 type RuntimeParams struct {
-    DryRun              bool
-    ExecutionID         string
-    DatabaseConnections []*sql.DB
-    Queries             []string
+	DryRun              bool
+	ExecutionID         string
+	DatabaseConnections []*sql.DB
+	Queries             []string
+}
+
+type ArchiveParameters struct {
+	Type string `yaml:"type"`
+	S3   struct {
+		Bucket string `yaml:"bucket"`
+		Region string `yaml:"region"`
+	}
 }
 
 type ArchivalPlan struct {
-    DatabaseID         string            `yaml:"databaseID"`
-	Query              ArchivalPlanQuery `yaml:"query"`
+	DatabaseID string            `yaml:"databaseID"`
+	Query      ArchivalPlanQuery `yaml:"query"`
 
-	Workers            int               `yaml:"workers"`   // number of parallel workers
+	Workers            int `yaml:"workers"` // number of parallel workers
 	DatabaseCredential DBCredential
 	RuntimeParameters  RuntimeParams
+	Archive            ArchiveParameters
 }
 
 func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {
-    data, err := os.ReadFile(filepath)
+	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file: %w", err)
 	}
@@ -59,18 +67,18 @@ func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-    credfile, err := os.ReadFile("db_credentials.yaml")
-    if err != nil {
+	credfile, err := os.ReadFile("db_credentials.yaml")
+	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file: %w", err)
 	}
 
-    var dbcredfile CredentialFile
-    err = yaml.Unmarshal(credfile, &dbcredfile)
+	var dbcredfile CredentialFile
+	err = yaml.Unmarshal(credfile, &dbcredfile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-    plan.DatabaseCredential = dbcredfile.Databases[plan.DatabaseID]
+	plan.DatabaseCredential = dbcredfile.Databases[plan.DatabaseID]
 
 	return &plan, nil
 }

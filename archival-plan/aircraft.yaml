@@ -1,7 +1,7 @@
 databaseID: "airline"
 query:
   table: "flights"
-  batchingEnabled: true
+  batchingEnabled: false
   batchColumn: "flight_id"
   batchColumnType: "int"
   batchStep: 10
@@ -10,6 +10,11 @@ query:
   filterConditions:
     - "departure_airport = 'DME'"
   runtimeParameters:
-    dryRun: true
+    dryRun: false
+archive:
+  type: "s3"
+  s3:
+    bucket: "nar21-lab"
+    region: "ap-south-1"
 
 workers: 4    # Number of parallel workers
