@@ -140,11 +140,14 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 		}
 
 		if ap.Cleanup.Enabled {
-			fmt.Printf("Deleting files: %s and %s\n", uncompressedFilepath, compressedFilePath)
+			fmt.Printf("Deleting file: %s \n", uncompressedFilepath)
 			os.Remove(uncompressedFilepath)
+
+			fmt.Printf("Deleting file: %s\n", compressedFilePath)
 			os.Remove(compressedFilePath)
+
 		} else {
-			fmt.Println("Cleanup not enabled, files retained.")
+			fmt.Println("Cleanup not enabled, data files retained")
 		}
 	}
 }
