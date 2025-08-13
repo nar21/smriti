@@ -12,7 +12,8 @@ import (
 )
 
 type S3Driver struct {
-	Bucket string
+	Bucket string `yaml:"bucket"`
+	Region string `yaml:"region"`
 	Client *s3.Client
 }
 
@@ -36,7 +37,7 @@ func (s *S3Driver) Upload(filePath string, remoteFilePath string) error {
 		return err
 	}
 	defer file.Close()
-	fmt.Println("S3 FilePath: ", remoteFilePath)
+
 	_, err = s.Client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(s.Bucket),
 		Key:    aws.String(remoteFilePath),
@@ -47,7 +48,11 @@ func (s *S3Driver) Upload(filePath string, remoteFilePath string) error {
 		return err
 	}
 
-	//s3Location := aws.StringValue(s3PutResponse.)
-	fmt.Printf("Uploaded %s to S3\n", filePath)
+	fmt.Printf(
+		"Uploaded %s to s3://%s/%s\n",
+		filePath,
+		s.Bucket,
+		remoteFilePath,
+	)
 	return nil
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"db-archive/objectStorage"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -38,12 +40,10 @@ type RuntimeParams struct {
 }
 
 type ArchiveParameters struct {
-	Enabled bool   `yaml:"enabled"`
-	Type    string `yaml:"type"`
-	Bucket  struct {
-		BucketName string `yaml:"bucketName"`
-		Region     string `yaml:"region"`
-	}
+	Enabled bool                         `yaml:"enabled"`
+	Type    string                       `yaml:"type"`
+	S3      *objectStorage.S3Driver      `yaml:"s3,omitempty"`
+	Local   *objectStorage.LocalFSDriver `yaml:"local,omitempty"`
 }
 type CleanupParameters struct {
 	Enabled bool `yaml:"enabled"`
@@ -58,6 +58,22 @@ type ArchivalPlan struct {
 	RuntimeParameters  RuntimeParams
 	ArchiveStorage     ArchiveParameters `yaml:"archiveStorage"`
 	Cleanup            CleanupParameters `yaml:"cleanup"`
+}
+
+func (a ArchiveParameters) Validate() error {
+	switch a.Type {
+	case "s3":
+		if a.S3 == nil || a.S3.Bucket == "" || a.S3.Region == "" {
+			return fmt.Errorf("S3 configuration missing required fields")
+		}
+	case "local":
+		if a.Local == nil || a.Local.Path == "" {
+			return fmt.Errorf("Local configuration missing required fields")
+		}
+	default:
+		return fmt.Errorf("Unknown storage type: %s", a.Type)
+	}
+	return nil
 }
 
 func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {
@@ -85,6 +101,11 @@ func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {
 	}
 
 	plan.DatabaseCredential = dbcredfile.Databases[plan.DatabaseID]
+
+	// Validate the archival storage configuration
+	if err := plan.ArchiveStorage.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid archival storage configuration: %w", err)
+	}
 
 	return &plan, nil
 }

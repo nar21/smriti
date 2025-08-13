@@ -7,7 +7,7 @@ import (
 )
 
 type LocalFSDriver struct {
-	Path string
+	Path string `yaml:"path"`
 }
 
 // NewS3Driver initializes the S3Driver with AWS config and bucket name.
@@ -18,7 +18,7 @@ func NewLocalFSDriver(path string) (*LocalFSDriver, error) {
 }
 
 // Upload uploads a file to the configured S3 bucket.
-func (s *LocalFSDriver) Upload(src string, destDir string) error {
+func (s *LocalFSDriver) Upload(src string, dest string) error {
 	src, err := filepath.Abs(src)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path of source file: %w", err)
@@ -33,27 +33,34 @@ func (s *LocalFSDriver) Upload(src string, destDir string) error {
 		return err
 	}
 
-	destDir, err = filepath.Abs(destDir)
+	dest, err = filepath.Abs(fmt.Sprintf("%s/%s", s.Path, dest))
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path of destination directory: %w", err)
 	}
 
+	destDir := filepath.Dir(dest)
+
+	fmt.Println("Destination Directory: ", destDir)
 	// Ensure the destination is a directory and it exists
 	destFd, err := os.Stat(destDir)
-	if err != nil {
-		fmt.Println("Destination does not exist: ", destDir)
-	}
-	if !destFd.IsDir() {
+
+	// If the destination is not a directory, return an error
+	if err == nil && !destFd.IsDir() {
 		return fmt.Errorf("destination %s is not a directory", destDir)
 	}
 
+	// If the directory does not exist, create it
+	if err != nil {
+		os.MkdirAll(destDir, 0755) // Create the directory if it doesn't exist
+		fmt.Println("Created directory:", destDir)
+	}
+
 	// Copy file to the destination file path
-	destFile := filepath.Join(destDir, filepath.Base(src))
-	err = os.WriteFile(destFile, srcFile, 0644)
+	err = os.WriteFile(dest, srcFile, 0644)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Copied %s to %s\n", srcFile, destFile)
+	fmt.Printf("Copied %s to %s\n", src, dest)
 	return nil
 }

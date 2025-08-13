@@ -121,21 +121,31 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 
 			// Initialize the object storage driver based on the archival plan
 			var driver objectStorage.ObjectStorageDriver
-			storageDriver := "s3"
+			storageDriver := ap.ArchiveStorage.Type
+			if storageDriver == "" {
+				log.Fatal("No storage type specified in archival plan")
+			}
 
+			// Create the appropriate storage driver based on the type specified
 			switch storageDriver {
 			case "s3":
 				s3Driver, err := objectStorage.NewS3Driver(
-					ap.ArchiveStorage.Bucket.BucketName,
+					ap.ArchiveStorage.S3.Bucket,
 				)
 				if err != nil {
 					fmt.Println("Could not create S3 driver:", err)
 				}
 				driver = s3Driver
-
-				// Azure to be implemented
-				// case "azureblob":
-				// 	driver = &objectStorage.AzureBlobDriver{}
+			case "local":
+				localFSDriver, err := objectStorage.NewLocalFSDriver(
+					ap.ArchiveStorage.Local.Path,
+				)
+				if err != nil {
+					fmt.Println("Could not create LocalFS driver:", err)
+				}
+				driver = localFSDriver
+			default:
+				log.Fatal("Unsupported storage type:", storageDriver)
 			}
 
 			err = driver.Upload(compressedFilePath, archiveFilePath)
