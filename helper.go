@@ -114,40 +114,47 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) {
 			fmt.Println("File compressed successfully!")
 		}
 
-		// Upload compressed file to object storage
-		fmt.Println("Uploading file to object storage...")
+		// If archival storage is enabled, upload the compressed file
+		if ap.ArchiveStorage.Enabled {
+			// Upload compressed file to object storage
+			fmt.Println("Uploading file to object storage...")
 
-		// Initialize the object storage driver based on the archival plan
-		var driver objectStorage.ObjectStorageDriver
-		storageDriver := "s3"
+			// Initialize the object storage driver based on the archival plan
+			var driver objectStorage.ObjectStorageDriver
+			storageDriver := "s3"
 
-		switch storageDriver {
-		case "s3":
-			s3Driver, err := objectStorage.NewS3Driver(
-				ap.ArchiveStorage.Bucket.BucketName,
-			)
-			if err != nil {
-				fmt.Println("Could not create S3 driver:", err)
+			switch storageDriver {
+			case "s3":
+				s3Driver, err := objectStorage.NewS3Driver(
+					ap.ArchiveStorage.Bucket.BucketName,
+				)
+				if err != nil {
+					fmt.Println("Could not create S3 driver:", err)
+				}
+				driver = s3Driver
+
+				// Azure to be implemented
+				// case "azureblob":
+				// 	driver = &objectStorage.AzureBlobDriver{}
 			}
-			driver = s3Driver
-		case "azureblob":
-			driver = &objectStorage.AzureBlobDriver{}
-		}
 
-		err = driver.Upload(compressedFilePath, archiveFilePath)
-		if err != nil {
-			log.Fatal("Error uploading file", err)
-		}
+			err = driver.Upload(compressedFilePath, archiveFilePath)
+			if err != nil {
+				log.Fatal("Error uploading file", err)
+			}
 
-		if ap.Cleanup.Enabled {
-			fmt.Printf("Deleting file: %s \n", uncompressedFilepath)
-			os.Remove(uncompressedFilepath)
+			if ap.Cleanup.Enabled {
+				fmt.Printf("Deleting file: %s \n", uncompressedFilepath)
+				os.Remove(uncompressedFilepath)
 
-			fmt.Printf("Deleting file: %s\n", compressedFilePath)
-			os.Remove(compressedFilePath)
+				fmt.Printf("Deleting file: %s\n", compressedFilePath)
+				os.Remove(compressedFilePath)
 
+			} else {
+				fmt.Println("Cleanup not enabled, data files retained")
+			}
 		} else {
-			fmt.Println("Cleanup not enabled, data files retained")
+			fmt.Println("Archival storage not enabled, skipping upload. Retaining data files.")
 		}
 	}
 }
