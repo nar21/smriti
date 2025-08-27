@@ -7,6 +7,7 @@ import (
     "log"
 	"os"
 	"flag"
+    "sync"
 )
 
 // Declare global variables
@@ -55,10 +56,13 @@ func main() {
     // Generic function call to the interface
     ap.RuntimeParameters.Queries = sqlGenerator.GenerateSQL(ap)
 
+    //Create a global mutex for synchronizing access to shared resources
+    var JobStateMutexLock sync.Mutex
+    
     // Execute all the queries through workers
     for i := 0; i < len(ap.RuntimeParameters.Queries); i++ {
 
-        launchArchivalWorker(i, ap)
+        launchArchivalWorker(i, ap, &JobStateMutexLock)
     }
 
 }

@@ -10,7 +10,7 @@ query:
   filterConditions:
     - "departure_airport = 'DME'"
 archiveStorage:
-  enabled: true
+  enabled: false
   type: "s3"
   s3:
     bucket: "nar21-lab"

@@ -32,11 +32,28 @@ type DBCredential struct {
 type CredentialFile struct {
 	Databases map[string]DBCredential
 }
+
+type QueryExecutionState struct {
+	QueryString string
+	Executed    bool
+}
+
+type ExecutionState struct {
+	Initialized       bool
+	DatabaseConnected bool
+	QueryExecuted     bool
+	FileExported      bool
+	FileCompressed    bool
+	FileUploaded      bool
+	CleanupDone       bool
+}
+
 type RuntimeParams struct {
 	DryRun              bool
 	ExecutionID         string
 	DatabaseConnections []*sql.DB
 	Queries             []string
+	JobExecutionStates  []ExecutionState
 }
 
 type ArchiveParameters struct {
@@ -108,4 +125,30 @@ func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {
 	}
 
 	return &plan, nil
+}
+
+func (ap ArchivalPlan) SaveExecutionState() error {
+	//Create a copy of the archival plan to avoid modifying the original
+	apTemp := ap
+
+	//Remove the database connection from the copy
+	apTemp.RuntimeParameters.DatabaseConnections = nil
+	//Remove the database credentials from the copy
+	apTemp.DatabaseCredential = DBCredential{}
+
+	// Convert the struct back to YAML
+	data, err := yaml.Marshal(apTemp)
+	if err != nil {
+		return fmt.Errorf("failed to marshal archival plan: %w", err)
+	}
+
+	// Write the YAML data to a file
+	filePath := fmt.Sprintf("archival-plan-%s.yaml", ap.DatabaseID)
+	err = os.WriteFile(filePath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write archival plan to file: %w", err)
+	}
+
+	fmt.Printf("Archival plan saved to %s\n", filePath)
+	return nil
 }
