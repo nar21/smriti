@@ -12,7 +12,6 @@ import (
 	"os"
 	"path"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -33,21 +32,20 @@ func GenerateExecutionID() (string, error) {
 	return fmt.Sprintf("%s-%s", dateStr, randomHex), nil
 }
 
-func createJobExecutionState(ap *parser.ArchivalPlan, JobStateMutexLock *sync.Mutex) {
+func getOrCreateJobExecutionState(ap *parser.ArchivalPlan) {
 	// Initialize the execution state for this worker
 	// Append a new job execution state after acquiring mutex lock
-	JobStateMutexLock.Lock()
-	defer JobStateMutexLock.Unlock()
+	ap.RuntimeParameters.MutexLocks["JobStateMutexLock"].Lock()
+	defer ap.RuntimeParameters.MutexLocks["JobStateMutexLock"].Unlock()
 	ap.RuntimeParameters.JobExecutionStates = append(
 		ap.RuntimeParameters.JobExecutionStates,
 		parser.ExecutionState{},
 	)
 }
 
-func updateJobExecutionState(ap *parser.ArchivalPlan, workerID int, stateKey string, stateValue bool, JobStateMutexLock *sync.Mutex) error {
-	// Acquire mutex lock
-	JobStateMutexLock.Lock()
-	defer JobStateMutexLock.Unlock()
+func updateJobExecutionState(ap *parser.ArchivalPlan, workerID int, stateKey string, stateValue bool) error {
+	// There is no need to lock the mutex here because this function is always called
+	// from within launchArchivalWorker, which updates only its own workerID's state.
 
 	// Update the specific state field based on the stateKey
 	switch stateKey {
@@ -65,6 +63,8 @@ func updateJobExecutionState(ap *parser.ArchivalPlan, workerID int, stateKey str
 		ap.RuntimeParameters.JobExecutionStates[workerID].FileUploaded = stateValue
 	case "CleanupDone":
 		ap.RuntimeParameters.JobExecutionStates[workerID].CleanupDone = stateValue
+	case "ThreadSuccess":
+		ap.RuntimeParameters.JobExecutionStates[workerID].ThreadSuccess = stateValue
 	default:
 		return fmt.Errorf("invalid state key: %s", stateKey)
 	}
@@ -72,25 +72,19 @@ func updateJobExecutionState(ap *parser.ArchivalPlan, workerID int, stateKey str
 }
 
 // Function that will carry out the archival process. To be used in a Go-routine.
-func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan, JobStateMutexLock *sync.Mutex) {
+func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) error {
 	// Initialize worker-specific variables
 	threadIndex := workerID
 	dryRun := ap.RuntimeParameters.DryRun
 	fmt.Println("WorkerID: ", workerID)
 	query := ap.RuntimeParameters.Queries[threadIndex]
 
-	threadWorkingDir := fmt.Sprintf(
-		"%s/%s",
-		path.Join(workDir),
-		ap.RuntimeParameters.ExecutionID,
-	)
-	fmt.Println("Execution Directory: ", threadWorkingDir)
-	CreateDirIfNotExist(threadWorkingDir)
+	workingDir := ap.RuntimeParameters.WorkingDir
 
 	fmt.Println("Executing query: ", query)
 	uncompressedFilepath := fmt.Sprintf(
 		"%s/output-%s.txt",
-		threadWorkingDir,
+		workingDir,
 		strconv.Itoa(workerID),
 	)
 
@@ -108,14 +102,12 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan, JobStateMutexLo
 	)
 	fmt.Println("Archive File Path: ", archiveFilePath)
 
-	// Initialize the execution state for this worker
-	ap.RuntimeParameters.JobExecutionStates = append(
-		ap.RuntimeParameters.JobExecutionStates,
-		parser.ExecutionState{},
-	)
+	// JobStateMutexLock is used only for createJobExecutionState.
+	// Initialize (new execution) or retrieve (resumed execution) the execution state for this worker
+	getOrCreateJobExecutionState(ap)
 
 	// Set worker initialized state value
-	updateJobExecutionState(ap, workerID, "Initialized", true, JobStateMutexLock)
+	updateJobExecutionState(ap, workerID, "Initialized", true)
 	// COMPLETED: initialization of worker-specific variables
 
 	if !dryRun {
@@ -142,7 +134,7 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan, JobStateMutexLo
 		if err != nil {
 			log.Fatal("Failed to connect to DB:", err)
 		} else {
-			updateJobExecutionState(ap, workerID, "DatabaseConnected", true, JobStateMutexLock)
+			updateJobExecutionState(ap, workerID, "DatabaseConnected", true)
 		}
 		defer db.Close() // Ensure DB connection is closed when done
 
@@ -151,7 +143,7 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan, JobStateMutexLo
 		if err != nil {
 			log.Fatal("Query failed:", err)
 		} else {
-			updateJobExecutionState(ap, workerID, "QueryExecuted", true, JobStateMutexLock)
+			updateJobExecutionState(ap, workerID, "QueryExecuted", true)
 		}
 
 		// Export to CSV
@@ -159,7 +151,7 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan, JobStateMutexLo
 		if err != nil {
 			log.Fatal("Failed to write CSV:", err)
 		} else {
-			updateJobExecutionState(ap, workerID, "FileExported", true, JobStateMutexLock)
+			updateJobExecutionState(ap, workerID, "FileExported", true)
 		}
 		fmt.Println("CSV Exported Successfully!")
 
@@ -168,7 +160,7 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan, JobStateMutexLo
 			fmt.Println("Compression failed:", err)
 		} else {
 			fmt.Println("File compressed successfully!")
-			updateJobExecutionState(ap, workerID, "FileCompressed", true, JobStateMutexLock)
+			updateJobExecutionState(ap, workerID, "FileCompressed", true)
 		}
 
 		// If archival storage is enabled, upload the compressed file
@@ -210,7 +202,7 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan, JobStateMutexLo
 			if err != nil {
 				log.Fatal("Error uploading file", err)
 			} else {
-				updateJobExecutionState(ap, workerID, "FileUploaded", true, JobStateMutexLock)
+				updateJobExecutionState(ap, workerID, "FileUploaded", true)
 			}
 
 			// Cleanup: delete the uncompressed and compressed files if cleanup is enabled
@@ -227,7 +219,7 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan, JobStateMutexLo
 				if err != nil {
 					fmt.Println("Error deleting compressed file:", err)
 				}
-				updateJobExecutionState(ap, workerID, "CleanupDone", true, JobStateMutexLock)
+				updateJobExecutionState(ap, workerID, "CleanupDone", true)
 
 			} else {
 				fmt.Println("Cleanup not enabled, data files retained")
@@ -236,12 +228,11 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan, JobStateMutexLo
 		} else {
 			fmt.Println("Archival storage not enabled, skipping upload. Retaining data files.")
 		}
-
-		if err = ap.SaveExecutionState(); err != nil {
-			log.Fatal("Failed to save execution state:", err)
-		}
 	}
 
+	updateJobExecutionState(ap, workerID, "ThreadSuccess", true)
+
+	return fmt.Errorf("dummy")
 }
 
 // CreateDirIfNotExist checks if a directory exists, and creates it if it does not.

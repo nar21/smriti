@@ -3,66 +3,97 @@ package main
 import (
 	"db-archive/parser"
 	"db-archive/sqlgen"
-	"fmt"
-    "log"
-	"os"
 	"flag"
-    "sync"
+	"fmt"
+	"log"
+	"os"
+	"path"
+	"sync"
 )
 
 // Declare global variables
-var workDir string
+var workDirBasePath string
 
 func main() {
-    // Parse command line flags
-    dryRun := flag.Bool("dry-run", false, "Dry run without executing queries or creating files")
+	// Parse command line flags
+	dryRun := flag.Bool("dry-run", false, "Dry run without executing queries or creating files")
+	executionIDArg := flag.String("execution-id", "", "Execution ID that has to be resumed")
 	flag.Parse()
 
-    // Create working directory if it does not exist
-    workDir = "./workDir"
-    CreateDirIfNotExist(workDir)
+	// Create working directory if it does not exist
+	workDirBasePath = "./workDir"
+	CreateDirIfNotExist(workDirBasePath)
 
-    archivalPlanName := os.Getenv("ARCHIVAL_PLAN")
-    if archivalPlanName == "" {
-        log.Fatal("Could not find ARCHIVAL_PLAN env variable")
-    }
-    archivalPlanFilepath := fmt.Sprintf("archival-plan/%s.yaml", archivalPlanName)
-    fmt.Println("Loading archival plan at ", archivalPlanFilepath)
+	archivalPlanName := os.Getenv("ARCHIVAL_PLAN")
+	if archivalPlanName == "" {
+		log.Fatal("Could not find ARCHIVAL_PLAN env variable")
+	}
+	archivalPlanFilepath := fmt.Sprintf("archival-plan/%s.yaml", archivalPlanName)
+	fmt.Println("Loading archival plan at ", archivalPlanFilepath)
 
-    // Load the archival plan object
-    var ap, err2 = parser.LoadArchivalPlan(archivalPlanFilepath)
+	// Load the archival plan object
+	var ap, err2 = parser.LoadArchivalPlan(archivalPlanFilepath)
 	if err2 != nil {
 		log.Fatal("Could not load archival plan")
 	}
 
-    // Overwrite archival plan with CLI values
-    ap.RuntimeParameters.DryRun = *dryRun
-    executionID, err := GenerateExecutionID()
-    if err != nil {
-        log.Fatal("Could not generate Execution ID", err)
-    }
-    ap.RuntimeParameters.ExecutionID = executionID
-    fmt.Println("ExecutionID: ", ap.RuntimeParameters.ExecutionID)
+	// Overwrite archival plan with CLI values
+	ap.RuntimeParameters.DryRun = *dryRun
+	executionID := *executionIDArg
 
-    // Call the appropriate DB plugin to generate SQL queries
-    var sqlGenerator sqlgen.SQLGeneratorDriver
-    sqlGenName := "postgresql"
+	if executionID == "" {
+		var err error
+		executionID, err = GenerateExecutionID()
+		if err != nil {
+			log.Fatal("Could not generate Execution ID", err)
+		}
 
-    switch sqlGenName {
-        case "postgresql":
-            sqlGenerator = &sqlgen.PostgresqlSQLGenerator{}
-    }
+		// Set the execution mode
+		ap.RuntimeParameters.ExecutionMode = "new"
+	} else {
+		ap.RuntimeParameters.ExecutionMode = "resumed"
+	}
+	ap.RuntimeParameters.ExecutionID = executionID
+	fmt.Println("ExecutionID: ", ap.RuntimeParameters.ExecutionID)
 
-    // Generic function call to the interface
-    ap.RuntimeParameters.Queries = sqlGenerator.GenerateSQL(ap)
+	// Set the working directory for this execution
+	workingDir := fmt.Sprintf(
+		"%s/%s",
+		path.Join(workDirBasePath),
+		ap.RuntimeParameters.ExecutionID,
+	)
+	fmt.Println("Execution Directory: ", workingDir)
+	// Set the working directory in the archival plan runtime parameters
+	ap.RuntimeParameters.WorkingDir = workingDir
+	// Create the working directory if it does not exist
+	CreateDirIfNotExist(workingDir)
 
-    //Create a global mutex for synchronizing access to shared resources
-    var JobStateMutexLock sync.Mutex
-    
-    // Execute all the queries through workers
-    for i := 0; i < len(ap.RuntimeParameters.Queries); i++ {
+	// Call the appropriate DB plugin to generate SQL queries
+	var sqlGenerator sqlgen.SQLGeneratorDriver
+	sqlGenName := "postgresql"
 
-        launchArchivalWorker(i, ap, &JobStateMutexLock)
-    }
+	switch sqlGenName {
+	case "postgresql":
+		sqlGenerator = &sqlgen.PostgresqlSQLGenerator{}
+	}
+
+	// Generic function call to the interface
+	ap.RuntimeParameters.Queries = sqlGenerator.GenerateSQL(ap)
+
+	//Create a global mutex for synchronizing access to shared resources
+	ap.RuntimeParameters.MutexLocks = make(map[string]*sync.Mutex)
+	ap.RuntimeParameters.MutexLocks["JobStateMutexLock"] = &sync.Mutex{}
+
+	// Execute all the queries using workers
+	for i := 0; i < len(ap.RuntimeParameters.Queries); i++ {
+		if err := launchArchivalWorker(i, ap); err != nil {
+			fmt.Printf("Archival worker %d failed: %s \n", i, err)
+		}
+	}
+
+	// Save the final execution state
+	if err := ap.SaveExecutionState(); err != nil {
+		log.Fatal("Failed to save execution state:", err)
+	}
 
 }

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 
 	"db-archive/objectStorage"
 
@@ -39,6 +40,11 @@ type QueryExecutionState struct {
 }
 
 type ExecutionState struct {
+	// TODO: Some of these stages can be skipped by the user, e.g., compression, upload, cleanup,
+	// or during dry run
+	// A bool may not suffice to represent the three states: not started, completed, skipped
+	// Currently, if a stage is not run, the flag remains false.
+
 	Initialized       bool
 	DatabaseConnected bool
 	QueryExecuted     bool
@@ -46,14 +52,19 @@ type ExecutionState struct {
 	FileCompressed    bool
 	FileUploaded      bool
 	CleanupDone       bool
+	ThreadSuccess     bool
 }
 
 type RuntimeParams struct {
 	DryRun              bool
+	ExecutionMode		string // "new" or "resume"
+	Workers             int
 	ExecutionID         string
 	DatabaseConnections []*sql.DB
 	Queries             []string
 	JobExecutionStates  []ExecutionState
+	WorkingDir          string
+	MutexLocks          map[string]*sync.Mutex
 }
 
 type ArchiveParameters struct {
@@ -135,6 +146,8 @@ func (ap ArchivalPlan) SaveExecutionState() error {
 	apTemp.RuntimeParameters.DatabaseConnections = nil
 	//Remove the database credentials from the copy
 	apTemp.DatabaseCredential = DBCredential{}
+	//Remove the mutex locks from the copy
+	apTemp.RuntimeParameters.MutexLocks = nil
 
 	// Convert the struct back to YAML
 	data, err := yaml.Marshal(apTemp)
@@ -143,7 +156,11 @@ func (ap ArchivalPlan) SaveExecutionState() error {
 	}
 
 	// Write the YAML data to a file
-	filePath := fmt.Sprintf("archival-plan-%s.yaml", ap.DatabaseID)
+	filePath := fmt.Sprintf(
+		"%s/archival-plan-%s.yaml",
+		ap.RuntimeParameters.WorkingDir,
+		ap.DatabaseID,
+	)
 	err = os.WriteFile(filePath, data, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write archival plan to file: %w", err)
