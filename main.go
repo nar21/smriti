@@ -24,11 +24,56 @@ func main() {
 	workDirBasePath = "./workDir"
 	CreateDirIfNotExist(workDirBasePath)
 
+	// Initialize static variables
+	executionID := *executionIDArg
+	statefileName := "statefile.yaml"
+
+	// Declare dynamic variables
+	var executionMode string
+	var archivalPlanFilepath string
+
+	if executionID == "" {
+		var err error
+		executionID, err = GenerateExecutionID()
+		if err != nil {
+			log.Fatal("Could not generate Execution ID", err)
+		}
+		executionMode = "new"
+	} else {
+		executionMode = "resumed"
+	}
+
+	// Generate the working directory for the current execution
+	workingDir := fmt.Sprintf(
+		"%s/%s",
+		path.Join(workDirBasePath),
+		executionID,
+	)
+	fmt.Println("Execution Directory: ", workingDir)
+
 	archivalPlanName := os.Getenv("ARCHIVAL_PLAN")
 	if archivalPlanName == "" {
 		log.Fatal("Could not find ARCHIVAL_PLAN env variable")
 	}
-	archivalPlanFilepath := fmt.Sprintf("archival-plan/%s.yaml", archivalPlanName)
+
+    stateFilePath := fmt.Sprintf(
+			"%s/%s",
+			workingDir,
+			statefileName,
+		)
+
+	switch executionMode {
+	case "new":
+		archivalPlanName := os.Getenv("ARCHIVAL_PLAN")
+		if archivalPlanName == "" {
+			log.Fatal("Could not find ARCHIVAL_PLAN env variable")
+		}
+		archivalPlanFilepath = fmt.Sprintf("archival-plan/%s.yaml", archivalPlanName)
+	case "resumed":
+		// Load the archival plan from the saved state file
+		archivalPlanFilepath = stateFilePath
+	}
+
 	fmt.Println("Loading archival plan at ", archivalPlanFilepath)
 
 	// Load the archival plan object
@@ -39,32 +84,11 @@ func main() {
 
 	// Overwrite archival plan with CLI values
 	ap.RuntimeParameters.DryRun = *dryRun
-	executionID := *executionIDArg
-
-	if executionID == "" {
-		var err error
-		executionID, err = GenerateExecutionID()
-		if err != nil {
-			log.Fatal("Could not generate Execution ID", err)
-		}
-
-		// Set the execution mode
-		ap.RuntimeParameters.ExecutionMode = "new"
-	} else {
-		ap.RuntimeParameters.ExecutionMode = "resumed"
-	}
+	ap.RuntimeParameters.ExecutionMode = executionMode
 	ap.RuntimeParameters.ExecutionID = executionID
 	fmt.Println("ExecutionID: ", ap.RuntimeParameters.ExecutionID)
-
-	// Set the working directory for this execution
-	workingDir := fmt.Sprintf(
-		"%s/%s",
-		path.Join(workDirBasePath),
-		ap.RuntimeParameters.ExecutionID,
-	)
-	fmt.Println("Execution Directory: ", workingDir)
-	// Set the working directory in the archival plan runtime parameters
 	ap.RuntimeParameters.WorkingDir = workingDir
+
 	// Create the working directory if it does not exist
 	CreateDirIfNotExist(workingDir)
 
@@ -92,7 +116,7 @@ func main() {
 	}
 
 	// Save the final execution state
-	if err := ap.SaveExecutionState(); err != nil {
+	if err := ap.SaveExecutionState(stateFilePath); err != nil {
 		log.Fatal("Failed to save execution state:", err)
 	}
 

@@ -42,7 +42,7 @@ type QueryExecutionState struct {
 type ExecutionState struct {
 	// TODO: Some of these stages can be skipped by the user, e.g., compression, upload, cleanup,
 	// or during dry run
-	// A bool may not suffice to represent the three states: not started, completed, skipped
+	// A bool may not suffice to represent the other states: not started, completed, skipped_by_user, skipped_due_to_dry_run, skipped_already_completed
 	// Currently, if a stage is not run, the flag remains false.
 
 	Initialized       bool
@@ -57,7 +57,7 @@ type ExecutionState struct {
 
 type RuntimeParams struct {
 	DryRun              bool
-	ExecutionMode		string // "new" or "resume"
+	ExecutionMode       string // "new" or "resume"
 	Workers             int
 	ExecutionID         string
 	DatabaseConnections []*sql.DB
@@ -138,7 +138,7 @@ func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {
 	return &plan, nil
 }
 
-func (ap ArchivalPlan) SaveExecutionState() error {
+func (ap ArchivalPlan) SaveExecutionState(stateFilePath string) error {
 	//Create a copy of the archival plan to avoid modifying the original
 	apTemp := ap
 
@@ -156,16 +156,11 @@ func (ap ArchivalPlan) SaveExecutionState() error {
 	}
 
 	// Write the YAML data to a file
-	filePath := fmt.Sprintf(
-		"%s/archival-plan-%s.yaml",
-		ap.RuntimeParameters.WorkingDir,
-		ap.DatabaseID,
-	)
-	err = os.WriteFile(filePath, data, 0644)
+	err = os.WriteFile(stateFilePath, data, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write archival plan to file: %w", err)
 	}
 
-	fmt.Printf("Archival plan saved to %s\n", filePath)
+	fmt.Printf("Archival plan saved to %s\n", stateFilePath)
 	return nil
 }
