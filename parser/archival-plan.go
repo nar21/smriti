@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
-
 	"db-archive/objectStorage"
-
 	"gopkg.in/yaml.v3"
 )
 
@@ -45,14 +43,14 @@ type ExecutionState struct {
 	// A bool may not suffice to represent the other states: not started, completed, skipped_by_user, skipped_due_to_dry_run, skipped_already_completed
 	// Currently, if a stage is not run, the flag remains false.
 
-	Initialized       bool
-	DatabaseConnected bool
-	QueryExecuted     bool
-	FileExported      bool
-	FileCompressed    bool
-	FileUploaded      bool
-	CleanupDone       bool
-	ThreadSuccess     bool
+	Initialized       string
+	DatabaseConnected string
+	QueryExecuted     string
+	FileExported      string
+	FileCompressed    string
+	FileUploaded      string
+	CleanupDone       string
+	ThreadSuccess     string
 }
 
 type RuntimeParams struct {
@@ -96,10 +94,10 @@ func (a ArchiveParameters) Validate() error {
 		}
 	case "local":
 		if a.Local == nil || a.Local.Path == "" {
-			return fmt.Errorf("Local configuration missing required fields")
+			return fmt.Errorf("local configuration missing required fields")
 		}
 	default:
-		return fmt.Errorf("Unknown storage type: %s", a.Type)
+		return fmt.Errorf("unknown storage type: %s", a.Type)
 	}
 	return nil
 }

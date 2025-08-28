@@ -56,20 +56,20 @@ func main() {
 		log.Fatal("Could not find ARCHIVAL_PLAN env variable")
 	}
 
-    stateFilePath := fmt.Sprintf(
-			"%s/%s",
-			workingDir,
-			statefileName,
-		)
+	stateFilePath := fmt.Sprintf(
+		"%s/%s",
+		workingDir,
+		statefileName,
+	)
 
 	switch executionMode {
-	case "new":
+	case EXECUTION_MODE_NEW:
 		archivalPlanName := os.Getenv("ARCHIVAL_PLAN")
 		if archivalPlanName == "" {
 			log.Fatal("Could not find ARCHIVAL_PLAN env variable")
 		}
 		archivalPlanFilepath = fmt.Sprintf("archival-plan/%s.yaml", archivalPlanName)
-	case "resumed":
+	case EXECUTION_MODE_RESUMED:
 		// Load the archival plan from the saved state file
 		archivalPlanFilepath = stateFilePath
 	}
