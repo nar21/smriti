@@ -4,13 +4,13 @@ query:
   batchingEnabled: false
   batchColumn: "flight_id"
   batchColumnType: "int"
-  batchStep: 10
-  batchColumnMin: 10
-  batchColumnMax: 90
-  filterConditions:
+  batchStep: 100000
+  batchColumnMin: 0
+  batchColumnMax: 2000000
+  filterConditions: 
     - "departure_airport = 'DME'"
 archiveStorage:
-  enabled: true
+  enabled: false
   type: "s3"
   s3:
     bucket: "nar21-lab"

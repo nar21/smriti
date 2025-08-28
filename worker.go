@@ -44,28 +44,28 @@ func getOrCreateJobExecutionState(ap *parser.ArchivalPlan) {
 	}
 }
 
-func updateJobExecutionState(ap *parser.ArchivalPlan, workerID int, stateKey, stateValue string) error {
+func updateJobExecutionState(ap *parser.ArchivalPlan, jobID int, stateKey, stateValue string) error {
 	// There is no need to lock the mutex here because this function is always called
-	// from within launchArchivalWorker, which updates only its own workerID's state.
+	// from within launchArchivalWorker, which updates only a specific job's state.
 
 	// Update the specific state field based on the stateKey
 	switch stateKey {
 	case "Initialized":
-		ap.RuntimeParameters.JobExecutionStates[workerID].Initialized = stateValue
+		ap.RuntimeParameters.JobExecutionStates[jobID].Initialized = stateValue
 	case "DatabaseConnected":
-		ap.RuntimeParameters.JobExecutionStates[workerID].DatabaseConnected = stateValue
+		ap.RuntimeParameters.JobExecutionStates[jobID].DatabaseConnected = stateValue
 	case "QueryExecuted":
-		ap.RuntimeParameters.JobExecutionStates[workerID].QueryExecuted = stateValue
+		ap.RuntimeParameters.JobExecutionStates[jobID].QueryExecuted = stateValue
 	case "FileExported":
-		ap.RuntimeParameters.JobExecutionStates[workerID].FileExported = stateValue
+		ap.RuntimeParameters.JobExecutionStates[jobID].FileExported = stateValue
 	case "FileCompressed":
-		ap.RuntimeParameters.JobExecutionStates[workerID].FileCompressed = stateValue
+		ap.RuntimeParameters.JobExecutionStates[jobID].FileCompressed = stateValue
 	case "FileUploaded":
-		ap.RuntimeParameters.JobExecutionStates[workerID].FileUploaded = stateValue
+		ap.RuntimeParameters.JobExecutionStates[jobID].FileUploaded = stateValue
 	case "CleanupDone":
-		ap.RuntimeParameters.JobExecutionStates[workerID].CleanupDone = stateValue
+		ap.RuntimeParameters.JobExecutionStates[jobID].CleanupDone = stateValue
 	case "ThreadSuccess":
-		ap.RuntimeParameters.JobExecutionStates[workerID].ThreadSuccess = stateValue
+		ap.RuntimeParameters.JobExecutionStates[jobID].ThreadSuccess = stateValue
 	default:
 		return fmt.Errorf("invalid state key: %s", stateKey)
 	}
@@ -73,20 +73,19 @@ func updateJobExecutionState(ap *parser.ArchivalPlan, workerID int, stateKey, st
 }
 
 // Function that will carry out the archival process. To be used in a Go-routine.
-func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) error {
+func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 	// Initialize worker-specific variables
-	threadIndex := workerID
+	threadIndex := jobID
 	dryRun := ap.RuntimeParameters.DryRun
-	fmt.Println("WorkerID: ", workerID)
+	fmt.Println("JobID: ", jobID)
 	query := ap.RuntimeParameters.Queries[threadIndex]
-
 	workingDir := ap.RuntimeParameters.WorkingDir
 
 	fmt.Println("Executing query: ", query)
 	uncompressedFilepath := fmt.Sprintf(
 		"%s/output-%s.txt",
 		workingDir,
-		strconv.Itoa(workerID),
+		strconv.Itoa(jobID),
 	)
 
 	compressedFilePath := uncompressedFilepath + ".gz"
@@ -108,7 +107,7 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) error {
 	getOrCreateJobExecutionState(ap)
 
 	// Set worker initialized state value
-	updateJobExecutionState(ap, workerID, "Initialized", JOB_STAGE_COMPLETED)
+	updateJobExecutionState(ap, jobID, "Initialized", JOB_STAGE_COMPLETED)
 	// COMPLETED: initialization of worker-specific variables
 
 	if !dryRun {
@@ -133,39 +132,39 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) error {
 		// Establish a connection to the database
 		db, err := dbDriver.GetDatabaseConnection(host, port, user, password, dbname)
 		if err != nil {
-			updateJobExecutionState(ap, workerID, "DatabaseConnected", JOB_STAGE_FAILED)
+			updateJobExecutionState(ap, jobID, "DatabaseConnected", JOB_STAGE_FAILED)
 			log.Fatal("Failed to connect to DB:", err)
 		} else {
-			updateJobExecutionState(ap, workerID, "DatabaseConnected", JOB_STAGE_COMPLETED)
+			updateJobExecutionState(ap, jobID, "DatabaseConnected", JOB_STAGE_COMPLETED)
 		}
 		defer db.Close() // Ensure DB connection is closed when done
 
 		// Run the query on the DB connection
 		data, columns, err := extract.QueryDynamic(db, query)
 		if err != nil {
-			updateJobExecutionState(ap, workerID, "QueryExecuted", JOB_STAGE_FAILED)
+			updateJobExecutionState(ap, jobID, "QueryExecuted", JOB_STAGE_FAILED)
 			log.Fatal("Query failed:", err)
 		} else {
-			updateJobExecutionState(ap, workerID, "QueryExecuted", JOB_STAGE_COMPLETED)
+			updateJobExecutionState(ap, jobID, "QueryExecuted", JOB_STAGE_COMPLETED)
 		}
 
 		// Export to CSV
 		err = extract.WriteCSV(uncompressedFilepath, data, columns)
 		if err != nil {
-			updateJobExecutionState(ap, workerID, "FileExported", JOB_STAGE_FAILED)
+			updateJobExecutionState(ap, jobID, "FileExported", JOB_STAGE_FAILED)
 			log.Fatal("Failed to write CSV:", err)
 		} else {
-			updateJobExecutionState(ap, workerID, "FileExported", JOB_STAGE_COMPLETED)
+			updateJobExecutionState(ap, jobID, "FileExported", JOB_STAGE_COMPLETED)
 		}
 		fmt.Println("CSV Exported Successfully!")
 
 		err = compress.CompressFile(uncompressedFilepath, compressedFilePath)
 		if err != nil {
-			updateJobExecutionState(ap, workerID, "FileCompressed", JOB_STAGE_FAILED)
+			updateJobExecutionState(ap, jobID, "FileCompressed", JOB_STAGE_FAILED)
 			fmt.Println("Compression failed:", err)
 		} else {
 			fmt.Println("File compressed successfully!")
-			updateJobExecutionState(ap, workerID, "FileCompressed", JOB_STAGE_COMPLETED)
+			updateJobExecutionState(ap, jobID, "FileCompressed", JOB_STAGE_COMPLETED)
 		}
 
 		// If archival storage is enabled, upload the compressed file
@@ -205,50 +204,50 @@ func launchArchivalWorker(workerID int, ap *parser.ArchivalPlan) error {
 			// Upload the compressed file to the configured storage
 			err = driver.Upload(compressedFilePath, archiveFilePath)
 			if err != nil {
-				updateJobExecutionState(ap, workerID, "FileUploaded", JOB_STAGE_FAILED)
-				log.Fatal("Error uploading file", err)
+				updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_FAILED)
+				return fmt.Errorf("error uploading file: %s", err)
 			} else {
-				updateJobExecutionState(ap, workerID, "FileUploaded", JOB_STAGE_COMPLETED)
+				updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_COMPLETED)
 			}
 
 		} else {
-			updateJobExecutionState(ap, workerID, "FileUploaded", JOB_STAGE_SKIPPED_BY_USER)
-			fmt.Println("Archival storage not enabled, skipping upload. Retaining data files.")
+			updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_SKIPPED_BY_USER)
+			fmt.Println("Archival storage not enabled, skipping upload.")
 		}
 
 		// Cleanup: delete the uncompressed and compressed files if cleanup is enabled
-		// Cleanup is inside this block because we only want to delete if upload was enabled (?)
+		// Cleanup if enabled can delete files even if upload failed. Can make troubleshooting harder.
 		if ap.Cleanup.Enabled {
 			fmt.Printf("Deleting file: %s \n", uncompressedFilepath)
 			err = os.Remove(uncompressedFilepath)
 			if err != nil {
-				updateJobExecutionState(ap, workerID, "CleanupDone", JOB_STAGE_FAILED)
+				updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_FAILED)
 				fmt.Println("Error deleting uncompressed file:", err)
 			}
 
 			fmt.Printf("Deleting file: %s\n", compressedFilePath)
 			err = os.Remove(compressedFilePath)
 			if err != nil {
-				updateJobExecutionState(ap, workerID, "CleanupDone", JOB_STAGE_FAILED)
+				updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_FAILED)
 				fmt.Println("Error deleting compressed file:", err)
 			}
-			updateJobExecutionState(ap, workerID, "CleanupDone", JOB_STAGE_COMPLETED)
+			updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_COMPLETED)
 
 		} else {
-			updateJobExecutionState(ap, workerID, "CleanupDone", JOB_STAGE_SKIPPED_BY_USER)
+			updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_SKIPPED_BY_USER)
 			fmt.Println("Cleanup not enabled, data files retained")
 		}
 	} else {
 		// In dry run mode, skip all steps after initialization
-		updateJobExecutionState(ap, workerID, "DatabaseConnected", JOB_STAGE_SKIPPED_ON_DRY_RUN)
-		updateJobExecutionState(ap, workerID, "QueryExecuted", JOB_STAGE_SKIPPED_ON_DRY_RUN)
-		updateJobExecutionState(ap, workerID, "FileExported", JOB_STAGE_SKIPPED_ON_DRY_RUN)
-		updateJobExecutionState(ap, workerID, "FileCompressed", JOB_STAGE_SKIPPED_ON_DRY_RUN)
-		updateJobExecutionState(ap, workerID, "FileUploaded", JOB_STAGE_SKIPPED_ON_DRY_RUN)
-		updateJobExecutionState(ap, workerID, "CleanupDone", JOB_STAGE_SKIPPED_ON_DRY_RUN)
+		updateJobExecutionState(ap, jobID, "DatabaseConnected", JOB_STAGE_SKIPPED_ON_DRY_RUN)
+		updateJobExecutionState(ap, jobID, "QueryExecuted", JOB_STAGE_SKIPPED_ON_DRY_RUN)
+		updateJobExecutionState(ap, jobID, "FileExported", JOB_STAGE_SKIPPED_ON_DRY_RUN)
+		updateJobExecutionState(ap, jobID, "FileCompressed", JOB_STAGE_SKIPPED_ON_DRY_RUN)
+		updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_SKIPPED_ON_DRY_RUN)
+		updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_SKIPPED_ON_DRY_RUN)
 		fmt.Println("Dry run enabled, skipping database operations and file handling.")
 	}
 
-	updateJobExecutionState(ap, workerID, "ThreadSuccess", JOB_STAGE_COMPLETED)
+	updateJobExecutionState(ap, jobID, "ThreadSuccess", JOB_STAGE_COMPLETED)
 	return nil
 }

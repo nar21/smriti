@@ -11,7 +11,11 @@ type PostgresqlSQLGenerator struct{}
 
 func (s *PostgresqlSQLGenerator) GenerateSQL(ap *parser.ArchivalPlan) []string {
 	var sql []string
-	whereConditionsStr := strings.Join(ap.Query.FilterConditions, " AND ")
+	// var whereConditionsStr string
+	// if len(ap.Query.FilterConditions) > 0 {
+	// 	whereConditionsStr = strings.Join(ap.Query.FilterConditions, " AND ")
+	// 	whereConditionsStr = whereConditionsStr + " AND "
+	// }
 
 	if ap.Query.BatchingEnabled {
 		// Batching enabled, generate multiple queries
@@ -50,7 +54,10 @@ func (s *PostgresqlSQLGenerator) GenerateSQL(ap *parser.ArchivalPlan) []string {
 			}
 
 			for i := 0; i < len(batchWhereConditions); i++ {
-				sqlTmp := fmt.Sprintf("SELECT * from %s WHERE %s AND %s;", ap.Query.Table, whereConditionsStr, batchWhereConditions[i])
+				whereConditionsStr := strings.Join(
+					append(ap.Query.FilterConditions, batchWhereConditions[i]),
+					" AND ")
+				sqlTmp := fmt.Sprintf("SELECT * from %s WHERE %s;", ap.Query.Table, whereConditionsStr)
 				//fmt.Println(sqlTmp)
 
 				sql = append(sql, sqlTmp)
@@ -58,7 +65,16 @@ func (s *PostgresqlSQLGenerator) GenerateSQL(ap *parser.ArchivalPlan) []string {
 		}
 	} else {
 		// No batching, single query
-		sqlTmp := fmt.Sprintf("SELECT * from %s WHERE %s;", ap.Query.Table, whereConditionsStr)
+		var sqlTmp string
+
+		// if there are filter conditions, include them in the query
+		if len(ap.Query.FilterConditions) > 0 {
+			whereConditionsStr := strings.Join(ap.Query.FilterConditions, " AND ")
+			sqlTmp = fmt.Sprintf("SELECT * from %s WHERE %s;", ap.Query.Table, whereConditionsStr)
+		} else {
+			// no filter conditions
+			sqlTmp = fmt.Sprintf("SELECT * from %s;", ap.Query.Table)
+		}
 		sql = append(sql, sqlTmp)
 	}
 	return sql

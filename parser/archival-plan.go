@@ -2,10 +2,11 @@ package parser
 
 import (
 	"database/sql"
+	"db-archive/objectStorage"
 	"fmt"
 	"os"
 	"sync"
-	"db-archive/objectStorage"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -159,6 +160,6 @@ func (ap ArchivalPlan) SaveExecutionState(stateFilePath string) error {
 		return fmt.Errorf("failed to write archival plan to file: %w", err)
 	}
 
-	fmt.Printf("Archival plan saved to %s\n", stateFilePath)
+	fmt.Printf("Archival state saved to %s\n", stateFilePath)
 	return nil
 }
