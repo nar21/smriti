@@ -7,7 +7,6 @@ import (
 	"db-archive/objectStorage"
 	"db-archive/parser"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"strconv"
@@ -39,12 +38,10 @@ func getOrCreateJobExecutionState(ap *parser.ArchivalPlan) {
 	case EXECUTION_MODE_RESUMED:
 		// Resumed execution, do nothing as the states are already loaded from the statefile
 		fmt.Println("Resuming execution, existing job states loaded")
-	default:
-		log.Fatal("Invalid execution mode:", ap.RuntimeParameters.ExecutionMode)
 	}
 }
 
-func updateJobExecutionState(ap *parser.ArchivalPlan, jobID int, stateKey, stateValue string) error {
+func updateJobExecutionState(ap *parser.ArchivalPlan, jobID int, stateKey string, stateValue string) {
 	// There is no need to lock the mutex here because this function is always called
 	// from within launchArchivalWorker, which updates only a specific job's state.
 
@@ -66,10 +63,30 @@ func updateJobExecutionState(ap *parser.ArchivalPlan, jobID int, stateKey, state
 		ap.RuntimeParameters.JobExecutionStates[jobID].CleanupDone = stateValue
 	case "ThreadSuccess":
 		ap.RuntimeParameters.JobExecutionStates[jobID].ThreadSuccess = stateValue
-	default:
-		return fmt.Errorf("invalid state key: %s", stateKey)
 	}
-	return nil
+}
+
+func getJobExecutionState(ap *parser.ArchivalPlan, jobID int, stateKey string) string {
+	var stateValue string
+	switch stateKey {
+	case "Initialized":
+		stateValue = ap.RuntimeParameters.JobExecutionStates[jobID].Initialized
+	case "DatabaseConnected":
+		stateValue = ap.RuntimeParameters.JobExecutionStates[jobID].DatabaseConnected
+	case "QueryExecuted":
+		stateValue = ap.RuntimeParameters.JobExecutionStates[jobID].QueryExecuted
+	case "FileExported":
+		stateValue = ap.RuntimeParameters.JobExecutionStates[jobID].FileExported
+	case "FileCompressed":
+		stateValue = ap.RuntimeParameters.JobExecutionStates[jobID].FileCompressed
+	case "FileUploaded":
+		stateValue = ap.RuntimeParameters.JobExecutionStates[jobID].FileUploaded
+	case "CleanupDone":
+		stateValue = ap.RuntimeParameters.JobExecutionStates[jobID].CleanupDone
+	case "ThreadSuccess":
+		stateValue = ap.RuntimeParameters.JobExecutionStates[jobID].ThreadSuccess
+	}
+	return stateValue
 }
 
 // Function that will carry out the archival process. To be used in a Go-routine.
@@ -126,116 +143,132 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 		case "postgres":
 			dbDriver = &database.PostgresDriver{}
 		default:
-			log.Fatal("Unsupported database engine:", dbEngine)
+			return fmt.Errorf("unsupported database engine: %s", dbEngine)
 		}
 
-		// Establish a connection to the database
+		// Establish a connection to the database in both the "new" and "resumed" execution modes
 		db, err := dbDriver.GetDatabaseConnection(host, port, user, password, dbname)
 		if err != nil {
 			updateJobExecutionState(ap, jobID, "DatabaseConnected", JOB_STAGE_FAILED)
-			log.Fatal("Failed to connect to DB:", err)
+			return fmt.Errorf("failed to connect to DB: %s", err)
 		} else {
 			updateJobExecutionState(ap, jobID, "DatabaseConnected", JOB_STAGE_COMPLETED)
 		}
 		defer db.Close() // Ensure DB connection is closed when done
 
 		// Run the query on the DB connection
-		data, columns, err := extract.QueryDynamic(db, query)
-		if err != nil {
-			updateJobExecutionState(ap, jobID, "QueryExecuted", JOB_STAGE_FAILED)
-			log.Fatal("Query failed:", err)
-		} else {
-			updateJobExecutionState(ap, jobID, "QueryExecuted", JOB_STAGE_COMPLETED)
-		}
+		var data []map[string]interface{}
+		var columns []string
 
-		// Export to CSV
-		err = extract.WriteCSV(uncompressedFilepath, data, columns)
-		if err != nil {
-			updateJobExecutionState(ap, jobID, "FileExported", JOB_STAGE_FAILED)
-			log.Fatal("Failed to write CSV:", err)
-		} else {
-			updateJobExecutionState(ap, jobID, "FileExported", JOB_STAGE_COMPLETED)
-		}
-		fmt.Println("CSV Exported Successfully!")
-
-		err = compress.CompressFile(uncompressedFilepath, compressedFilePath)
-		if err != nil {
-			updateJobExecutionState(ap, jobID, "FileCompressed", JOB_STAGE_FAILED)
-			fmt.Println("Compression failed:", err)
-		} else {
-			fmt.Println("File compressed successfully!")
-			updateJobExecutionState(ap, jobID, "FileCompressed", JOB_STAGE_COMPLETED)
-		}
-
-		// If archival storage is enabled, upload the compressed file
-		if ap.ArchiveStorage.Enabled {
-			// Upload compressed file to object storage
-			fmt.Println("Uploading file to object storage...")
-
-			// Initialize the object storage driver based on the archival plan
-			var driver objectStorage.ObjectStorageDriver
-			storageDriver := ap.ArchiveStorage.Type
-			if storageDriver == "" {
-				log.Fatal("No storage type specified in archival plan")
-			}
-
-			// Create the appropriate storage driver based on the type specified
-			switch storageDriver {
-			case "s3":
-				s3Driver, err := objectStorage.NewS3Driver(
-					ap.ArchiveStorage.S3.Bucket,
-				)
-				if err != nil {
-					fmt.Println("Could not create S3 driver:", err)
-				}
-				driver = s3Driver
-			case "local":
-				localFSDriver, err := objectStorage.NewLocalFSDriver(
-					ap.ArchiveStorage.Local.Path,
-				)
-				if err != nil {
-					fmt.Println("Could not create LocalFS driver:", err)
-				}
-				driver = localFSDriver
-			default:
-				log.Fatal("Unsupported storage type:", storageDriver)
-			}
-
-			// Upload the compressed file to the configured storage
-			err = driver.Upload(compressedFilePath, archiveFilePath)
+		// Execute the query only if it hasn't been executed successfully before
+		if getJobExecutionState(ap, jobID, "QueryExecuted") != JOB_STAGE_COMPLETED {
+			data, columns, err = extract.QueryDynamic(db, query)
 			if err != nil {
-				updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_FAILED)
-				return fmt.Errorf("error uploading file: %s", err)
+				updateJobExecutionState(ap, jobID, "QueryExecuted", JOB_STAGE_FAILED)
+				return fmt.Errorf("query failed: %s", err)
 			} else {
-				updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_COMPLETED)
+				updateJobExecutionState(ap, jobID, "QueryExecuted", JOB_STAGE_COMPLETED)
 			}
+		}
 
-		} else {
-			updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_SKIPPED_BY_USER)
-			fmt.Println("Archival storage not enabled, skipping upload.")
+		// Export to CSV if not already done
+		if getJobExecutionState(ap, jobID, "FileExported") != JOB_STAGE_COMPLETED {
+			err = extract.WriteCSV(uncompressedFilepath, data, columns)
+			if err != nil {
+				updateJobExecutionState(ap, jobID, "FileExported", JOB_STAGE_FAILED)
+				return fmt.Errorf("failed to write CSV: %s", err)
+			} else {
+				updateJobExecutionState(ap, jobID, "FileExported", JOB_STAGE_COMPLETED)
+			}
+			fmt.Println("CSV Exported Successfully!")
+		}
+
+		// Compress the exported file if not already done
+		if getJobExecutionState(ap, jobID, "FileCompressed") != JOB_STAGE_COMPLETED {
+			err = compress.CompressFile(uncompressedFilepath, compressedFilePath)
+			if err != nil {
+				updateJobExecutionState(ap, jobID, "FileCompressed", JOB_STAGE_FAILED)
+				fmt.Println("Compression failed:", err)
+			} else {
+				fmt.Println("File compressed successfully!")
+				updateJobExecutionState(ap, jobID, "FileCompressed", JOB_STAGE_COMPLETED)
+			}
+		}
+
+		// If archival storage is enabled, upload the compressed file if not already done
+		if getJobExecutionState(ap, jobID, "FileUploaded") != JOB_STAGE_COMPLETED {
+			if ap.ArchiveStorage.Enabled {
+				// Upload compressed file to object storage
+				fmt.Println("Uploading file to object storage...")
+
+				// Initialize the object storage driver based on the archival plan
+				var driver objectStorage.ObjectStorageDriver
+				storageDriver := ap.ArchiveStorage.Type
+				if storageDriver == "" {
+					return fmt.Errorf("no archival storage type specified in archival plan")
+				}
+
+				// Create the appropriate storage driver based on the type specified
+				switch storageDriver {
+				case "s3":
+					s3Driver, err := objectStorage.NewS3Driver(
+						ap.ArchiveStorage.S3.Bucket,
+					)
+					if err != nil {
+						fmt.Println("Could not create S3 driver:", err)
+					}
+					driver = s3Driver
+				case "local":
+					localFSDriver, err := objectStorage.NewLocalFSDriver(
+						ap.ArchiveStorage.Local.Path,
+					)
+					if err != nil {
+						fmt.Println("Could not create LocalFS driver:", err)
+					}
+					driver = localFSDriver
+				default:
+					return fmt.Errorf("unsupported storage type: %s", storageDriver)
+				}
+
+				// Upload the compressed file to the configured storage
+				err = driver.Upload(compressedFilePath, archiveFilePath)
+				if err != nil {
+					updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_FAILED)
+					return fmt.Errorf("error uploading file: %s", err)
+				} else {
+					updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_COMPLETED)
+				}
+
+			} else {
+				updateJobExecutionState(ap, jobID, "FileUploaded", JOB_STAGE_SKIPPED_BY_USER)
+				fmt.Println("Archival storage not enabled, skipping upload.")
+			}
 		}
 
 		// Cleanup: delete the uncompressed and compressed files if cleanup is enabled
 		// Cleanup if enabled can delete files even if upload failed. Can make troubleshooting harder.
-		if ap.Cleanup.Enabled {
-			fmt.Printf("Deleting file: %s \n", uncompressedFilepath)
-			err = os.Remove(uncompressedFilepath)
-			if err != nil {
-				updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_FAILED)
-				fmt.Println("Error deleting uncompressed file:", err)
-			}
+		// Run cleanup only if not already done
+		if getJobExecutionState(ap, jobID, "CleanupDone") != JOB_STAGE_COMPLETED {
+			if ap.Cleanup.Enabled {
+				fmt.Printf("Deleting file: %s \n", uncompressedFilepath)
+				err = os.Remove(uncompressedFilepath)
+				if err != nil {
+					updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_FAILED)
+					fmt.Println("Error deleting uncompressed file:", err)
+				}
 
-			fmt.Printf("Deleting file: %s\n", compressedFilePath)
-			err = os.Remove(compressedFilePath)
-			if err != nil {
-				updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_FAILED)
-				fmt.Println("Error deleting compressed file:", err)
-			}
-			updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_COMPLETED)
+				fmt.Printf("Deleting file: %s\n", compressedFilePath)
+				err = os.Remove(compressedFilePath)
+				if err != nil {
+					updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_FAILED)
+					fmt.Println("Error deleting compressed file:", err)
+				}
+				updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_COMPLETED)
 
-		} else {
-			updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_SKIPPED_BY_USER)
-			fmt.Println("Cleanup not enabled, data files retained")
+			} else {
+				updateJobExecutionState(ap, jobID, "CleanupDone", JOB_STAGE_SKIPPED_BY_USER)
+				fmt.Println("Cleanup not enabled, data files retained")
+			}
 		}
 	} else {
 		// In dry run mode, skip all steps after initialization
