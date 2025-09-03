@@ -7,6 +7,8 @@ import datetime
 import json
 import os
 
+
+
 # --- Helpers ---
 def random_string(n=10):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
@@ -70,6 +72,9 @@ def generate_row():
 
 # --- Main insert logic ---
 def insert_rows(cursor, n=10):
+
+    INSERT_BATCH_SIZE = 1000
+
     insert_sql = """INSERT INTO sample_data (
         int_col, bigint_col, numeric_col, real_col, double_col,
         text_col, varchar_col, char_col,
@@ -92,21 +97,28 @@ def insert_rows(cursor, n=10):
         )"""
     
     values_list = []
-    for _ in range(n):
+    batch_ctr = 1
+    for i in range(n):
         row = generate_row()
         values_sql_str = values_sql % tuple(row)
         values_list += [values_sql_str]
-    query = insert_sql + " " + ",\n".join(values_list) + ";"
-    print(query)
-    cursor.execute(query)
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+        # Execute in batches to avoid too large queries
+        if len(values_list) >= INSERT_BATCH_SIZE:
+            query = insert_sql + " " + ",\n".join(values_list) + ";"
+            print("Executing batch: %d" % batch_ctr)
+            batch_ctr += 1
+            cursor.execute(query)
+            conn.commit()
+            values_list = []
+
+    
     print(f"Inserted {n} rows successfully.")
 
 
 if __name__ == "__main__":
+
+    ROWS_TO_INSERT = 1000000
     conn = pg8000.connect(
         user="sample",
         password="sample",
@@ -115,5 +127,7 @@ if __name__ == "__main__":
         database="sample"
     )
     cursor = conn.cursor()
-    insert_rows(cursor, 2)  # insert 1 rows
+    insert_rows(cursor, ROWS_TO_INSERT)
+    cursor.close()
+    conn.close()
 
