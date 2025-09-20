@@ -2,3 +2,4 @@
 *.csv
 db_credentials.yaml
 workDir/
+bin/

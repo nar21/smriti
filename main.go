@@ -9,6 +9,7 @@ import (
 	"smriti/parser"
 	"smriti/sqlgen"
 	"sync"
+	"time"
 )
 
 // Declare global variables
@@ -112,6 +113,11 @@ func main() {
 	for i := 0; i < len(ap.RuntimeParameters.Queries); i++ {
 		if err := launchArchivalWorker(i, ap); err != nil {
 			fmt.Printf("Archival worker %d failed: %s \n", i, err)
+		}
+
+		if i == 2 {
+			fmt.Println("Sleeping for 10 seconds")
+			time.Sleep(10) // * time.Second)
 		}
 	}
 
