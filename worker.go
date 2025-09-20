@@ -1,14 +1,14 @@
 package main
 
 import (
-	"db-archive/compress"
-	"db-archive/database"
-	"db-archive/extract"
-	"db-archive/objectStorage"
-	"db-archive/parser"
 	"fmt"
 	"os"
 	"path"
+	"smriti/compress"
+	"smriti/database"
+	"smriti/extract"
+	"smriti/objectStorage"
+	"smriti/parser"
 	"strconv"
 )
 

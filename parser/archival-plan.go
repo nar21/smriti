@@ -2,7 +2,7 @@ package parser
 
 import (
 	"database/sql"
-	"db-archive/objectStorage"
+	"smriti/objectStorage"
 	"fmt"
 	"os"
 	"sync"

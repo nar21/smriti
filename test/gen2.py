@@ -73,7 +73,7 @@ def generate_row():
 # --- Main insert logic ---
 def insert_rows(cursor, n=10):
 
-    INSERT_BATCH_SIZE = 1000
+    INSERT_BATCH_SIZE = 100000
 
     insert_sql = """INSERT INTO sample_data (
         int_col, bigint_col, numeric_col, real_col, double_col,
@@ -118,7 +118,7 @@ def insert_rows(cursor, n=10):
 
 if __name__ == "__main__":
 
-    ROWS_TO_INSERT = 1000000
+    ROWS_TO_INSERT = 9000000
     conn = pg8000.connect(
         user="sample",
         password="sample",

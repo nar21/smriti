@@ -1,13 +1,13 @@
 package main
 
 import (
-	"db-archive/parser"
-	"db-archive/sqlgen"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path"
+	"smriti/parser"
+	"smriti/sqlgen"
 	"sync"
 )
 

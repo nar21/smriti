@@ -1,4 +1,4 @@
-module db-archive
+module smriti
 
 go 1.23.1
 

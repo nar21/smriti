@@ -1,9 +1,9 @@
 package sqlgen
 
 import (
-    "db-archive/parser"
+	"smriti/parser"
 )
 
 type SQLGeneratorDriver interface {
-    GenerateSQL(*parser.ArchivalPlan) []string
+	GenerateSQL(*parser.ArchivalPlan) []string
 }

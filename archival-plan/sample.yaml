@@ -1,0 +1,23 @@
+databaseID: "sample-rds"
+query:
+  table: "sample_data"
+  batchingEnabled: true
+  batchColumn: "id"
+  batchColumnType: "int"
+  batchStep: 100000
+  batchColumnMin: 0
+  batchColumnMax: 1000000
+  filterConditions: 
+    - "int_col > 0"
+archiveStorage:
+  enabled: false
+  type: "s3"
+  s3:
+    bucket: "nar21-lab"
+    region: "ap-south-1"
+  local:
+    path: "/tmp/db-archive"
+cleanup:
+  enabled: false
+
+workers: 4    # Number of parallel workers

@@ -1,8 +1,8 @@
 package sqlgen
 
 import (
-	"db-archive/parser"
 	"fmt"
+	"smriti/parser"
 	"strconv"
 	"strings"
 )
