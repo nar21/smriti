@@ -19,5 +19,3 @@ archiveStorage:
     path: "/tmp/db-archive"
 cleanup:
   enabled: false
-
-workers: 4    # Number of parallel workers
