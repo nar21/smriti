@@ -55,7 +55,7 @@ databases:
 Note: All database credentials should be set in the `db_credentials.yaml` file. This file will not be tracked by SCM.
 
 3. Set ARCHIVAL_PLAN environment variable
-
+This is the name of the archival plan file. Specify only the filename; file extension and path must not be included.
 ``` shell
 export ARCHIVAL_PLAN="sample"
 ```
