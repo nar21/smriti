@@ -54,6 +54,12 @@ databases:
 
 Note: All database credentials should be set in the `db_credentials.yaml` file. This file will not be tracked by SCM.
 
+3. Set ARCHIVAL_PLAN environment variable
+
+``` shell
+export ARCHIVAL_PLAN="sample"
+```
+
 ### Execute your archival
 1. (Preferably always) Dry run your archival
 ``` shell
@@ -62,8 +68,15 @@ Note: All database credentials should be set in the `db_credentials.yaml` file. 
 
 
 2. Start archival 
+- Fresh execution
 ``` shell
 ./bin/smriti 
 ```
+- with execution ID
+``` shell
+./bin/smriti --execution-id <exec-id>
+
+```
+
 
 If all goes well, you should see archival files created in the working directory `workDir/` .
