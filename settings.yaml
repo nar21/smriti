@@ -1,3 +1,0 @@
-archivalPlansDir: ./archival-plan
-workingDir: ./workDir
-dbCredentialsPath: ./db-credentials.yaml
