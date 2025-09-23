@@ -6,23 +6,41 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
+	"smriti/config"
 	"smriti/parser"
 	"smriti/sqlgen"
 	"sync"
 	"time"
 )
 
-// Declare global variables
-var workDirBasePath string
-
 func main() {
 	// Parse command line flags
 	dryRun := flag.Bool("dry-run", false, "Dry run without executing queries or creating files")
+	init := flag.Bool("init", false, "Create settings.yaml with default values and exit")
 	executionIDArg := flag.String("execution-id", "", "Execution ID that has to be resumed")
 	flag.Parse()
 
+	if init != nil && *init {
+		err := initSmritiDirsAndFiles()
+		if err != nil {
+			log.Fatal("Could not initialize smriti directories and files:", err)
+		}
+		fmt.Println("Initialized smriti directories and files. Edit settings.yaml and db-credentials.yaml as needed, then run again without --init flag.")
+		os.Exit(0)
+	}
+
+	globalSettings, err := config.LoadGlobalSettings()
+	if err != nil {
+		log.Fatal("Could not load global settings. Try running with --init flag to create a default settings.yaml file")
+	}
+
 	// Create working directory if it does not exist
-	workDirBasePath = "./workDir"
+	workDirBasePath, err := filepath.Abs(globalSettings.WorkingDir)
+	if err != nil {
+		log.Fatal("Could not get absolute path of working directory")
+	}
+	fmt.Println("Working Directory: ", workDirBasePath)
 	CreateDirIfNotExist(workDirBasePath)
 
 	// Initialize static variables
@@ -52,6 +70,13 @@ func main() {
 	)
 	fmt.Println("Execution Directory: ", workingDir)
 
+	// Set the archival plans directory path
+	archivalPlansDir, err := filepath.Abs(globalSettings.ArchivalPlansDir)
+	if err != nil {
+		log.Fatal("Could not get absolute path of archival plans directory")
+	}
+	fmt.Println("Archival Plans Directory: ", archivalPlansDir)
+	// Get the archival plan name from env variable
 	archivalPlanName := os.Getenv("ARCHIVAL_PLAN")
 	if archivalPlanName == "" {
 		log.Fatal("Could not find ARCHIVAL_PLAN env variable")
@@ -69,7 +94,7 @@ func main() {
 		if archivalPlanName == "" {
 			log.Fatal("Could not find ARCHIVAL_PLAN env variable")
 		}
-		archivalPlanFilepath = fmt.Sprintf("archival-plan/%s.yaml", archivalPlanName)
+		archivalPlanFilepath = fmt.Sprintf("%s/%s.yaml", archivalPlansDir, archivalPlanName)
 	case EXECUTION_MODE_RESUMED:
 		// Load the archival plan from the saved state file
 		archivalPlanFilepath = stateFilePath
@@ -78,17 +103,18 @@ func main() {
 	fmt.Println("Loading archival plan at ", archivalPlanFilepath)
 
 	// Load the archival plan object
-	var ap, err2 = parser.LoadArchivalPlan(archivalPlanFilepath)
+	var ap, err2 = parser.LoadArchivalPlan(archivalPlanFilepath, *globalSettings)
 	if err2 != nil {
 		log.Fatal("Could not load archival plan")
 	}
 
-	// Overwrite archival plan with CLI values
+	// Set runtime values with CLI values
 	ap.RuntimeParameters.DryRun = *dryRun
 	ap.RuntimeParameters.ExecutionMode = executionMode
 	ap.RuntimeParameters.ExecutionID = executionID
-	fmt.Println("ExecutionID: ", ap.RuntimeParameters.ExecutionID)
 	ap.RuntimeParameters.WorkingDir = workingDir
+
+	fmt.Println("ExecutionID: ", ap.RuntimeParameters.ExecutionID)
 
 	// Create the working directory if it does not exist
 	CreateDirIfNotExist(workingDir)

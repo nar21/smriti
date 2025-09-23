@@ -2,9 +2,11 @@ package parser
 
 import (
 	"database/sql"
-	"smriti/objectStorage"
 	"fmt"
 	"os"
+	"path/filepath"
+	"smriti/config"
+	"smriti/objectStorage"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -103,8 +105,8 @@ func (a ArchiveParameters) Validate() error {
 	return nil
 }
 
-func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {
-	data, err := os.ReadFile(filepath)
+func LoadArchivalPlan(archivalFilepath string, globalSettings config.GlobalSettings) (*ArchivalPlan, error) {
+	data, err := os.ReadFile(archivalFilepath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file: %w", err)
 	}
@@ -116,7 +118,13 @@ func LoadArchivalPlan(filepath string) (*ArchivalPlan, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	credfile, err := os.ReadFile("db_credentials.yaml")
+	// Load the database credentials from the global settings file
+	DBCredentialAbsPath, err := filepath.Abs(globalSettings.DbCredentialsPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not get absolute path of DB credentials file: %w", err)
+	}
+	fmt.Println("Loading DB credentials from ", DBCredentialAbsPath)
+	credfile, err := os.ReadFile(DBCredentialAbsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file: %w", err)
 	}

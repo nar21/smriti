@@ -32,27 +32,19 @@ cp archival-plan/sample.yaml archival-plan/myplan.yaml
 
 Refer to the [Archival Plan documentation](docs/archival-plan.md) to understand the parameters.
 
-Your archival plans can be checked into SCM, as credentials are stored in a separate file `./db_credentials.yaml` .
+Your archival plans can be checked into SCM, as credentials are stored in a separate file `./db-credentials.yaml` .
 
-2. Once the archival plan is ready, set the database credentials.
-First create the credentials file
+2. Initialize Smriti
+`--init` creates settings.yaml and db-credentials.yaml files with default values
 ``` shell
-touch db_credentials.yaml
+./bin/smriti --init
 ```
 
-Add the below Yaml block in the `db_credentials.yaml` file and update the appropriate values. 
-``` yaml
-databases:
-  sample-rds:
-    engine: "postgres"
-    host: localhost
-    port: 54321
-    user: sample
-    password: sample
-    dbname: sample
-```
+Notes: 
+  - All database credentials should be set in the `db_credentials.yaml` file.
+  - Update the default paths in settings.yaml as per your convenience.
 
-Note: All database credentials should be set in the `db_credentials.yaml` file. This file will not be tracked by SCM.
+
 
 3. Set ARCHIVAL_PLAN environment variable
 
@@ -62,18 +54,18 @@ export ARCHIVAL_PLAN="sample"
 ```
 
 ### Execute your archival
-1. (Preferably always) Dry run your archival
+1. Dry run your archival plan
 ``` shell
 ./bin/smriti --dry-run
 ```
 
 
-2. Start archival 
+2. Start archival
 - Fresh execution
 ``` shell
 ./bin/smriti 
 ```
-- with execution ID
+- Resume with execution ID
 ``` shell
 ./bin/smriti --execution-id <exec-id>
 

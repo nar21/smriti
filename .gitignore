@@ -1,5 +1,5 @@
 .idea
 *.csv
-db_credentials.yaml
+db-credentials.yaml
 workDir/
 bin/
