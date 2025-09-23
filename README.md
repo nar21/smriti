@@ -19,7 +19,7 @@ git clone git@github.com:nar21/smriti.git
 
 ``` shell
 cd smriti
-go build -o bin/smriti .
+make
 ```
 
 ## Usage
