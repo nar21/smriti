@@ -41,7 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Could not get absolute path of working directory")
 	}
-	fmt.Println("Working Directory: ", workDirBasePath)
+	//fmt.Println("Working Directory: ", workDirBasePath)
 	CreateDirIfNotExist(workDirBasePath)
 
 	// Initialize static variables
@@ -69,14 +69,14 @@ func main() {
 		path.Join(workDirBasePath),
 		executionID,
 	)
-	fmt.Println("Execution Directory: ", executionDir)
+	//fmt.Println("Execution Directory: ", executionDir)
 
 	// Set the archival plans directory path
 	archivalPlansDir, err := filepath.Abs(globalSettings.ArchivalPlansDir)
 	if err != nil {
 		log.Fatal("Could not get absolute path of archival plans directory")
 	}
-	fmt.Println("Archival Plans Directory: ", archivalPlansDir)
+	//fmt.Println("Archival Plans Directory: ", archivalPlansDir)
 	// Get the archival plan name from env variable
 	archivalPlanName := os.Getenv("ARCHIVAL_PLAN")
 	if archivalPlanName == "" {
@@ -101,7 +101,7 @@ func main() {
 		archivalPlanFilepath = stateFilePath
 	}
 
-	fmt.Println("Loading archival plan at ", archivalPlanFilepath)
+	fmt.Println("Loading archival plan from ", archivalPlanFilepath)
 
 	// Load the archival plan object
 	var ap, err2 = parser.LoadArchivalPlan(archivalPlanFilepath, *globalSettings)

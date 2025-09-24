@@ -10,9 +10,8 @@ import (
 )
 
 type JobLogger struct {
-	jobID  string
-	file   *os.File
-	buffer bytes.Buffer
+	jobID string
+	file  *os.File
 }
 
 // NewJobLogger initializes a logger for a specific job ID
@@ -27,13 +26,14 @@ func NewJobLogger(jobID string, ap *parser.ArchivalPlan) (*JobLogger, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
-	return &JobLogger{jobID: jobID, file: f, buffer: bytes.Buffer{}}, nil
+	return &JobLogger{jobID: jobID, file: f}, nil
 }
 
 // Log writes to stdout and the job log file
 func (jl *JobLogger) Log(msg ...string) error {
 	// Create a logger that writes to a buffer
-	logger := log.New(&jl.buffer, "", log.Ldate|log.Ltime)
+	var buffer bytes.Buffer
+	logger := log.New(&buffer, "", log.Ldate|log.Ltime)
 
 	// Use a string builder to concatenate messages with spaces
 	var sb strings.Builder
@@ -41,12 +41,12 @@ func (jl *JobLogger) Log(msg ...string) error {
 		sb.WriteString(m + " ")
 	}
 	// Join all messages with a space, like Println
-	logger.Println(fmt.Sprintf("[Job %s] ", jl.jobID) + sb.String() + "\n")
+	logger.Println(fmt.Sprintf("[Job %s] ", jl.jobID) + sb.String())
 
 	// Get the log string from the buffer and write to both stdout and file
-	logString := jl.buffer.String()
+	logString := buffer.String()
 
-	fmt.Println(logString)
+	fmt.Print(logString)
 	if _, err := jl.file.WriteString(logString); err != nil {
 		return fmt.Errorf("failed to write log: %w", err)
 	}

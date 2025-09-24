@@ -1,7 +1,7 @@
 databaseID: "airline-rds"
 query:
   table: "flights"
-  batchingEnabled: false
+  batchingEnabled: true
   batchColumn: "flight_id"
   batchColumnType: "int"
   batchStep: 100000
