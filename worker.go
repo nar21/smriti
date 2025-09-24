@@ -7,6 +7,7 @@ import (
 	"smriti/compress"
 	"smriti/database"
 	"smriti/extract"
+	"smriti/logging"
 	"smriti/objectStorage"
 	"smriti/parser"
 	"strconv"
@@ -36,8 +37,8 @@ func getOrCreateJobExecutionState(ap *parser.ArchivalPlan) {
 		)
 
 	case EXECUTION_MODE_RESUMED:
-		// Resumed execution, do nothing as the states are already loaded from the statefile
-		fmt.Println("Resuming execution, existing job states loaded")
+		// Resumed execution, initialization is not required as the states are already loaded from the statefile
+
 	}
 }
 
@@ -112,13 +113,18 @@ func getJobStageState(ap *parser.ArchivalPlan, jobID int, stateKey string) strin
 // Function that will carry out the archival process. To be used in a Go-routine.
 func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 	// Initialize worker-specific variables
+	logger, err := logging.NewJobLogger(strconv.Itoa(jobID), ap)
 	threadIndex := jobID
 	dryRun := ap.RuntimeParameters.DryRun
-	fmt.Println("JobID: ", jobID)
 	query := ap.RuntimeParameters.Queries[threadIndex]
 	workingDir := ap.RuntimeParameters.WorkingDir
 
-	fmt.Println("Executing query: ", query)
+	if err != nil {
+		return fmt.Errorf("could not create job logger: %s", err)
+	}
+	defer logger.Close()
+
+	logger.Log("Executing query:", query)
 	uncompressedFilepath := fmt.Sprintf(
 		"%s/output-%s.txt",
 		workingDir,
@@ -126,8 +132,8 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 	)
 
 	compressedFilePath := uncompressedFilepath + ".gz"
-	fmt.Println("Plaintext filepath: ", uncompressedFilepath)
-	fmt.Println("Compressed filepath: ", compressedFilePath)
+	logger.Log("Plaintext filepath: ", uncompressedFilepath)
+	logger.Log("Compressed filepath: ", compressedFilePath)
 
 	archiveFilePath := fmt.Sprintf(
 		"uploads/%s/%s/%s/%s/%s",
@@ -137,7 +143,7 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 		ap.RuntimeParameters.ExecutionID,
 		path.Base(compressedFilePath),
 	)
-	fmt.Println("Archive File Path: ", archiveFilePath)
+	logger.Log("Archive File Path: ", archiveFilePath)
 
 	// JobStateMutexLock is used only for createJobExecutionState.
 	// Initialize (new execution) or retrieve (resumed execution) the execution state for this worker
@@ -158,12 +164,14 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 			dbname := ap.DatabaseCredential.DBName
 			dbEngine := ap.DatabaseCredential.Engine
 
-			fmt.Printf("Connecting to %s database \"%s\" at %s:%d\n", dbEngine, dbname, host, port)
+			logger.Log("Connecting to %s database \"%s\" at %s:%d\n", dbEngine, dbname, host, strconv.Itoa(port))
 			var dbDriver database.DatabaseDriver
 
 			switch dbEngine {
 			case "postgres":
-				dbDriver = &database.PostgresDriver{}
+				dbDriver = &database.PostgresDriver{
+					Logger: logger,
+				}
 			default:
 				return fmt.Errorf("unsupported database engine: %s", dbEngine)
 			}
@@ -202,7 +210,7 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 				} else {
 					updateJobStageState(ap, jobID, "FileExported", JOB_STAGE_COMPLETED)
 				}
-				fmt.Println("CSV Exported Successfully!")
+				logger.Log("CSV Exported Successfully!")
 			}
 
 			// Compress the exported file if not already done
@@ -212,7 +220,7 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 					updateJobStageState(ap, jobID, "FileCompressed", JOB_STAGE_FAILED)
 					return fmt.Errorf("compression failed: %s", err)
 				} else {
-					fmt.Println("File compressed successfully!")
+					logger.Log("File compressed successfully!")
 					updateJobStageState(ap, jobID, "FileCompressed", JOB_STAGE_COMPLETED)
 				}
 			}
@@ -221,7 +229,7 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 			if getJobStageState(ap, jobID, "FileUploaded") != JOB_STAGE_COMPLETED {
 				if ap.ArchiveStorage.Enabled {
 					// Upload compressed file to object storage
-					fmt.Println("Uploading file to object storage...")
+					logger.Log("Uploading file to object storage...")
 
 					// Initialize the object storage driver based on the archival plan
 					var driver objectStorage.ObjectStorageDriver
@@ -235,6 +243,8 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 					case "s3":
 						s3Driver, err := objectStorage.NewS3Driver(
 							ap.ArchiveStorage.S3.Bucket,
+							ap.ArchiveStorage.S3.Region,
+							logger,
 						)
 						if err != nil {
 							return fmt.Errorf("could not create S3 driver: %s", err)
@@ -263,7 +273,7 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 
 				} else {
 					updateJobStageState(ap, jobID, "FileUploaded", JOB_STAGE_SKIPPED_BY_USER)
-					fmt.Println("Archival storage not enabled, skipping upload.")
+					logger.Log("Archival storage not enabled, skipping upload.")
 				}
 			}
 
@@ -272,14 +282,14 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 			// Run cleanup only if not already done
 			if getJobStageState(ap, jobID, "CleanupDone") != JOB_STAGE_COMPLETED {
 				if ap.Cleanup.Enabled {
-					fmt.Printf("Deleting file: %s \n", uncompressedFilepath)
+					logger.Log("Deleting file:", uncompressedFilepath)
 					err = os.Remove(uncompressedFilepath)
 					if err != nil {
 						updateJobStageState(ap, jobID, "CleanupDone", JOB_STAGE_FAILED)
 						return fmt.Errorf("error deleting uncompressed file:", err)
 					}
 
-					fmt.Printf("Deleting file: %s\n", compressedFilePath)
+					logger.Log("Deleting file: %s\n", compressedFilePath)
 					err = os.Remove(compressedFilePath)
 					if err != nil {
 						updateJobStageState(ap, jobID, "CleanupDone", JOB_STAGE_FAILED)
@@ -289,11 +299,11 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 
 				} else {
 					updateJobStageState(ap, jobID, "CleanupDone", JOB_STAGE_SKIPPED_BY_USER)
-					fmt.Println("Cleanup not enabled, data files retained")
+					logger.Log("Cleanup not enabled, data files retained")
 				}
 			}
 		} else {
-			fmt.Printf("Thread %d already completed successfully, skipping all stages.\n", jobID)
+			logger.Log("All stages completed on earlier run for job ", strconv.Itoa(jobID))
 		}
 	} else {
 		// In dry run mode, skip all steps after initialization
@@ -303,7 +313,7 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 		updateJobStageState(ap, jobID, "FileCompressed", JOB_STAGE_SKIPPED_ON_DRY_RUN)
 		updateJobStageState(ap, jobID, "FileUploaded", JOB_STAGE_SKIPPED_ON_DRY_RUN)
 		updateJobStageState(ap, jobID, "CleanupDone", JOB_STAGE_SKIPPED_ON_DRY_RUN)
-		fmt.Println("Dry run enabled, skipping database operations and file handling.")
+		logger.Log("Dry run enabled, skipping database operations and file handling.")
 	}
 
 	// Confirm and update the overall job completion status

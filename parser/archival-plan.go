@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"smriti/config"
-	"smriti/objectStorage"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -68,11 +67,20 @@ type RuntimeParams struct {
 	MutexLocks          map[string]*sync.Mutex
 }
 
+type AWSS3Params struct {
+	Bucket string `yaml:"bucket"`
+	Region string `yaml:"region"`
+}
+
+type LocalFSParams struct {
+	Path string `yaml:"path"`
+}
+
 type ArchiveParameters struct {
-	Enabled bool                         `yaml:"enabled"`
-	Type    string                       `yaml:"type"`
-	S3      *objectStorage.S3Driver      `yaml:"s3,omitempty"`
-	Local   *objectStorage.LocalFSDriver `yaml:"local,omitempty"`
+	Enabled bool           `yaml:"enabled"`
+	Type    string         `yaml:"type"`
+	S3      *AWSS3Params   `yaml:"s3,omitempty"`
+	Local   *LocalFSParams `yaml:"local,omitempty"`
 }
 type CleanupParameters struct {
 	Enabled bool `yaml:"enabled"`
@@ -167,7 +175,5 @@ func (ap ArchivalPlan) SaveExecutionState(stateFilePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to write archival plan to file: %w", err)
 	}
-
-	fmt.Printf("Archival state saved to %s\n", stateFilePath)
 	return nil
 }

@@ -9,10 +9,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func HelloTest() {
-    fmt.Println("HelloTest")
-}
-
 func QueryDynamic(db *sql.DB, query string) ([]map[string]interface{}, []string, error) {
 	rows, err := db.Query(query)
 	if err != nil {

@@ -3,9 +3,12 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"smriti/logging"
 )
 
-type PostgresDriver struct{}
+type PostgresDriver struct{
+	Logger *logging.JobLogger
+}
 
 // GetDatabaseConnection establishes a connection to a PostgreSQL database
 // and returns the sql.DB connection object.
@@ -26,6 +29,6 @@ func (pg *PostgresDriver) GetDatabaseConnection(host string, port int, user, pas
 		return nil, err
 	}
 
-	fmt.Println("Successfully connected to PostgreSQL!")
+	pg.Logger.Log("Successfully connected to PostgreSQL!")
 	return db, nil
 }

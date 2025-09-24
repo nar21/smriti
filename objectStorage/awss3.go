@@ -2,23 +2,25 @@ package objectStorage
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+
+	"smriti/logging"
 )
 
 type S3Driver struct {
-	Bucket string `yaml:"bucket"`
-	Region string `yaml:"region"`
+	Bucket string
+	Region string
+	Logger *logging.JobLogger
 	Client *s3.Client
 }
 
 // NewS3Driver initializes the S3Driver with AWS config and bucket name.
-func NewS3Driver(bucket string) (*S3Driver, error) {
+func NewS3Driver(bucket string, region string, logger *logging.JobLogger) (*S3Driver, error) {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
 		return nil, err
@@ -26,6 +28,8 @@ func NewS3Driver(bucket string) (*S3Driver, error) {
 	client := s3.NewFromConfig(cfg)
 	return &S3Driver{
 		Bucket: bucket,
+		Region: region,
+		Logger: logger,
 		Client: client,
 	}, nil
 }
@@ -48,10 +52,12 @@ func (s *S3Driver) Upload(filePath string, remoteFilePath string) error {
 		return err
 	}
 
-	fmt.Printf(
-		"Uploaded %s to s3://%s/%s\n",
+	s.Logger.Log(
+		"Uploaded",
 		filePath,
+		"to",
 		s.Bucket,
+		"://",
 		remoteFilePath,
 	)
 	return nil

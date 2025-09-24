@@ -8,8 +8,10 @@ import (
 	"path"
 	"path/filepath"
 	"smriti/config"
+	"smriti/logging"
 	"smriti/parser"
 	"smriti/sqlgen"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -40,7 +42,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Could not get absolute path of working directory")
 	}
-	fmt.Println("Working Directory: ", workDirBasePath)
+	//fmt.Println("Working Directory: ", workDirBasePath)
 	CreateDirIfNotExist(workDirBasePath)
 
 	// Initialize static variables
@@ -63,19 +65,19 @@ func main() {
 	}
 
 	// Generate the working directory for the current execution
-	workingDir := fmt.Sprintf(
+	executionDir := fmt.Sprintf(
 		"%s/%s",
 		path.Join(workDirBasePath),
 		executionID,
 	)
-	fmt.Println("Execution Directory: ", workingDir)
+	//fmt.Println("Execution Directory: ", executionDir)
 
 	// Set the archival plans directory path
 	archivalPlansDir, err := filepath.Abs(globalSettings.ArchivalPlansDir)
 	if err != nil {
 		log.Fatal("Could not get absolute path of archival plans directory")
 	}
-	fmt.Println("Archival Plans Directory: ", archivalPlansDir)
+	//fmt.Println("Archival Plans Directory: ", archivalPlansDir)
 	// Get the archival plan name from env variable
 	archivalPlanName := os.Getenv("ARCHIVAL_PLAN")
 	if archivalPlanName == "" {
@@ -84,7 +86,7 @@ func main() {
 
 	stateFilePath := fmt.Sprintf(
 		"%s/%s",
-		workingDir,
+		executionDir,
 		statefileName,
 	)
 
@@ -100,7 +102,7 @@ func main() {
 		archivalPlanFilepath = stateFilePath
 	}
 
-	fmt.Println("Loading archival plan at ", archivalPlanFilepath)
+	fmt.Println("Loading archival plan from ", archivalPlanFilepath)
 
 	// Load the archival plan object
 	var ap, err2 = parser.LoadArchivalPlan(archivalPlanFilepath, *globalSettings)
@@ -112,12 +114,17 @@ func main() {
 	ap.RuntimeParameters.DryRun = *dryRun
 	ap.RuntimeParameters.ExecutionMode = executionMode
 	ap.RuntimeParameters.ExecutionID = executionID
-	ap.RuntimeParameters.WorkingDir = workingDir
-
-	fmt.Println("ExecutionID: ", ap.RuntimeParameters.ExecutionID)
+	ap.RuntimeParameters.WorkingDir = executionDir
 
 	// Create the working directory if it does not exist
-	CreateDirIfNotExist(workingDir)
+	CreateDirIfNotExist(executionDir)
+
+	// Initialize logger after basic initilization (like creation of working directory) is done
+	logger, err := logging.NewJobLogger("main", ap)
+	if err != nil {
+		log.Fatal("Could not create main logger: ", err)
+	}
+	logger.Log("Starting execution with ExecutionID: ", ap.RuntimeParameters.ExecutionID)
 
 	// Call the appropriate DB plugin to generate SQL queries
 	var sqlGenerator sqlgen.SQLGeneratorDriver
@@ -125,7 +132,9 @@ func main() {
 
 	switch sqlGenName {
 	case "postgresql":
-		sqlGenerator = &sqlgen.PostgresqlSQLGenerator{}
+		sqlGenerator = &sqlgen.PostgresqlSQLGenerator{
+			Logger: logger,
+		}
 	}
 
 	// Generic function call to the interface
@@ -138,11 +147,11 @@ func main() {
 	// Execute all the queries using workers
 	for i := 0; i < len(ap.RuntimeParameters.Queries); i++ {
 		if err := launchArchivalWorker(i, ap); err != nil {
-			fmt.Printf("Archival worker %d failed: %s \n", i, err)
+			logger.Log("Archival worker failed: ", strconv.Itoa(i), err.Error())
 		}
 
 		if i == 2 {
-			fmt.Println("Sleeping for 10 seconds")
+			logger.Log("Sleeping for 10 seconds")
 			time.Sleep(10) // * time.Second)
 		}
 	}
@@ -150,6 +159,8 @@ func main() {
 	// Save the final execution state
 	if err := ap.SaveExecutionState(stateFilePath); err != nil {
 		log.Fatal("Failed to save execution state:", err)
+	} else {
+		logger.Log("Archival state saved to ", stateFilePath)
 	}
 
 }
