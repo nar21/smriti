@@ -1,12 +1,12 @@
 databaseID: "airline-rds"
 query:
   table: "flights"
-  batchingEnabled: false
-  batchColumn: "flight_id"
-  batchColumnType: "int" # int or datetime
-  batchStep: 100000
-  batchColumnMin: 0
-  batchColumnMax: 2000000
+  batchingEnabled: true
+  batchColumn: "scheduled_departure"
+  batchColumnType: "datetime" # int or datetime
+  batchStep: 5
+  batchColumnMin: 2017-01-01T00:00:00
+  batchColumnMax: 2017-02-04T04:59:59
   filterConditions: 
     - "departure_airport = 'DME'"
 archiveStorage:

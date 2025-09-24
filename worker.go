@@ -164,7 +164,7 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 			dbname := ap.DatabaseCredential.DBName
 			dbEngine := ap.DatabaseCredential.Engine
 
-			logger.Log("Connecting to %s database \"%s\" at %s:%d\n", dbEngine, dbname, host, strconv.Itoa(port))
+			logger.Log("Connecting to database ID", ap.DatabaseID)
 			var dbDriver database.DatabaseDriver
 
 			switch dbEngine {
