@@ -7,6 +7,7 @@ import (
 	"smriti/compress"
 	"smriti/database"
 	"smriti/extract"
+	"smriti/logging"
 	"smriti/objectStorage"
 	"smriti/parser"
 	"strconv"
@@ -36,7 +37,7 @@ func getOrCreateJobExecutionState(ap *parser.ArchivalPlan) {
 		)
 
 	case EXECUTION_MODE_RESUMED:
-		// Resumed execution, do nothing as the states are already loaded from the statefile
+		// Resumed execution, initialization is not required as the states are already loaded from the statefile
 		fmt.Println("Resuming execution, existing job states loaded")
 	}
 }
@@ -118,7 +119,14 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 	query := ap.RuntimeParameters.Queries[threadIndex]
 	workingDir := ap.RuntimeParameters.WorkingDir
 
-	fmt.Println("Executing query: ", query)
+	
+	logger, err := logging.NewJobLogger(strconv.Itoa(jobID), ap)
+	if err != nil {
+		return fmt.Errorf("could not create job logger: %s", err)
+	}
+	defer logger.Close()
+
+	logger.Log("Executing query:", query)
 	uncompressedFilepath := fmt.Sprintf(
 		"%s/output-%s.txt",
 		workingDir,

@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"smriti/config"
+	"smriti/logging"
 	"smriti/parser"
 	"smriti/sqlgen"
 	"sync"
@@ -63,12 +64,12 @@ func main() {
 	}
 
 	// Generate the working directory for the current execution
-	workingDir := fmt.Sprintf(
+	executionDir := fmt.Sprintf(
 		"%s/%s",
 		path.Join(workDirBasePath),
 		executionID,
 	)
-	fmt.Println("Execution Directory: ", workingDir)
+	fmt.Println("Execution Directory: ", executionDir)
 
 	// Set the archival plans directory path
 	archivalPlansDir, err := filepath.Abs(globalSettings.ArchivalPlansDir)
@@ -84,7 +85,7 @@ func main() {
 
 	stateFilePath := fmt.Sprintf(
 		"%s/%s",
-		workingDir,
+		executionDir,
 		statefileName,
 	)
 
@@ -112,12 +113,17 @@ func main() {
 	ap.RuntimeParameters.DryRun = *dryRun
 	ap.RuntimeParameters.ExecutionMode = executionMode
 	ap.RuntimeParameters.ExecutionID = executionID
-	ap.RuntimeParameters.WorkingDir = workingDir
-
-	fmt.Println("ExecutionID: ", ap.RuntimeParameters.ExecutionID)
+	ap.RuntimeParameters.WorkingDir = executionDir
 
 	// Create the working directory if it does not exist
-	CreateDirIfNotExist(workingDir)
+	CreateDirIfNotExist(executionDir)
+
+	// Initialize logger after basic initilization (like creation of working directory) is done
+	logger, err := logging.NewJobLogger("main", ap)
+	if err != nil {
+		log.Fatal("Could not create main logger: ", err)
+	}
+	logger.Log("Starting execution with ExecutionID: ", ap.RuntimeParameters.ExecutionID)
 
 	// Call the appropriate DB plugin to generate SQL queries
 	var sqlGenerator sqlgen.SQLGeneratorDriver

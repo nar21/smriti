@@ -1,7 +1,7 @@
 databaseID: "sample-rds"
 query:
   table: "sample_data"
-  batchingEnabled: false
+  batchingEnabled: true
   batchColumn: "id"
   batchColumnType: "int"
   batchStep: 100000
