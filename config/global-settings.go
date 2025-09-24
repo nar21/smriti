@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-
 	"gopkg.in/yaml.v3"
 )
 

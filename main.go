@@ -11,6 +11,7 @@ import (
 	"smriti/logging"
 	"smriti/parser"
 	"smriti/sqlgen"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -131,7 +132,9 @@ func main() {
 
 	switch sqlGenName {
 	case "postgresql":
-		sqlGenerator = &sqlgen.PostgresqlSQLGenerator{}
+		sqlGenerator = &sqlgen.PostgresqlSQLGenerator{
+			Logger: logger,
+		}
 	}
 
 	// Generic function call to the interface
@@ -144,11 +147,11 @@ func main() {
 	// Execute all the queries using workers
 	for i := 0; i < len(ap.RuntimeParameters.Queries); i++ {
 		if err := launchArchivalWorker(i, ap); err != nil {
-			fmt.Printf("Archival worker %d failed: %s \n", i, err)
+			logger.Log("Archival worker failed: ", strconv.Itoa(i), err.Error())
 		}
 
 		if i == 2 {
-			fmt.Println("Sleeping for 10 seconds")
+			logger.Log("Sleeping for 10 seconds")
 			time.Sleep(10) // * time.Second)
 		}
 	}
@@ -156,6 +159,8 @@ func main() {
 	// Save the final execution state
 	if err := ap.SaveExecutionState(stateFilePath); err != nil {
 		log.Fatal("Failed to save execution state:", err)
+	} else {
+		logger.Log("Archival state saved to ", stateFilePath)
 	}
 
 }

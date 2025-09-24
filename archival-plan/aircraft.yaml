@@ -1,7 +1,7 @@
 databaseID: "airline-rds"
 query:
   table: "flights"
-  batchingEnabled: true
+  batchingEnabled: false
   batchColumn: "flight_id"
   batchColumnType: "int"
   batchStep: 100000
@@ -10,7 +10,7 @@ query:
   filterConditions: 
     - "departure_airport = 'DME'"
 archiveStorage:
-  enabled: false
+  enabled: true
   type: "s3"
   s3:
     bucket: "nar21-lab"

@@ -2,12 +2,15 @@ package sqlgen
 
 import (
 	"fmt"
+	"smriti/logging"
 	"smriti/parser"
 	"strconv"
 	"strings"
 )
 
-type PostgresqlSQLGenerator struct{}
+type PostgresqlSQLGenerator struct {
+	Logger *logging.JobLogger
+}
 
 func (s *PostgresqlSQLGenerator) GenerateSQL(ap *parser.ArchivalPlan) []string {
 	var sql []string
@@ -26,11 +29,11 @@ func (s *PostgresqlSQLGenerator) GenerateSQL(ap *parser.ArchivalPlan) []string {
 		if batchColumnType == "int" {
 			minVal, err := strconv.Atoi(getMinBatchColumnValue(ap))
 			if err != nil {
-				fmt.Println("Could not cast string to int")
+				s.Logger.Log("Could not cast string to int")
 			}
 			maxVal, err := strconv.Atoi(getMaxBatchColumnValue(ap))
 			if err != nil {
-				fmt.Println("Could not cast string to int")
+				s.Logger.Log("Could not cast string to int")
 			}
 
 			var batchWhereConditions []string

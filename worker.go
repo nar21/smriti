@@ -164,12 +164,14 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 			dbname := ap.DatabaseCredential.DBName
 			dbEngine := ap.DatabaseCredential.Engine
 
-			fmt.Printf("Connecting to %s database \"%s\" at %s:%d\n", dbEngine, dbname, host, port)
+			logger.Log("Connecting to %s database \"%s\" at %s:%d\n", dbEngine, dbname, host, strconv.Itoa(port))
 			var dbDriver database.DatabaseDriver
 
 			switch dbEngine {
 			case "postgres":
-				dbDriver = &database.PostgresDriver{}
+				dbDriver = &database.PostgresDriver{
+					Logger: logger,
+				}
 			default:
 				return fmt.Errorf("unsupported database engine: %s", dbEngine)
 			}
@@ -241,6 +243,8 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 					case "s3":
 						s3Driver, err := objectStorage.NewS3Driver(
 							ap.ArchiveStorage.S3.Bucket,
+							ap.ArchiveStorage.S3.Region,
+							logger,
 						)
 						if err != nil {
 							return fmt.Errorf("could not create S3 driver: %s", err)
@@ -299,7 +303,7 @@ func launchArchivalWorker(jobID int, ap *parser.ArchivalPlan) error {
 				}
 			}
 		} else {
-			logger.Log("All stages completed on earlier run for job \n", strconv.Itoa(jobID))
+			logger.Log("All stages completed on earlier run for job ", strconv.Itoa(jobID))
 		}
 	} else {
 		// In dry run mode, skip all steps after initialization

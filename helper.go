@@ -98,7 +98,6 @@ func initSmritiDirsAndFiles() error {
 	} else {
 		return fmt.Errorf("db-credentials.yaml already exists at %s", credFilePath)
 	}
-
 	return nil
 }
 
