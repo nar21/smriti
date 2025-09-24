@@ -6,6 +6,7 @@ import (
 	"smriti/parser"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type PostgresqlSQLGenerator struct {
@@ -14,17 +15,13 @@ type PostgresqlSQLGenerator struct {
 
 func (s *PostgresqlSQLGenerator) GenerateSQL(ap *parser.ArchivalPlan) []string {
 	var sql []string
-	// var whereConditionsStr string
-	// if len(ap.Query.FilterConditions) > 0 {
-	// 	whereConditionsStr = strings.Join(ap.Query.FilterConditions, " AND ")
-	// 	whereConditionsStr = whereConditionsStr + " AND "
-	// }
 
 	if ap.Query.BatchingEnabled {
 		// Batching enabled, generate multiple queries
 		batchColumn := ap.Query.BatchColumn
 		batchColumnType := ap.Query.BatchColumnType
 		batchStep := ap.Query.BatchStep
+		var batchWhereConditions []string
 
 		if batchColumnType == "int" {
 			minVal, err := strconv.Atoi(getMinBatchColumnValue(ap))
@@ -35,11 +32,8 @@ func (s *PostgresqlSQLGenerator) GenerateSQL(ap *parser.ArchivalPlan) []string {
 			if err != nil {
 				s.Logger.Log("Could not cast string to int")
 			}
-
-			var batchWhereConditions []string
 			minTmp := minVal
-			for true {
-				//fmt.Println(minTmp, minTmp + batchStep)
+			for {
 				whereConTmp := fmt.Sprintf(
 					"%s >= %d AND %s < %d",
 					batchColumn,
@@ -49,22 +43,69 @@ func (s *PostgresqlSQLGenerator) GenerateSQL(ap *parser.ArchivalPlan) []string {
 				)
 				batchWhereConditions = append(batchWhereConditions, whereConTmp)
 				minTmp = minTmp + batchStep
-				//break
 				if minTmp > maxVal {
 					break
 				}
+			}
+		} else if batchColumnType == "datetime" {
+			dateFormat := "2006-01-02T15:04:05" // Golang reference time format
 
+			minValUser, err := time.Parse(dateFormat, getMinBatchColumnValue(ap))
+			if err != nil {
+				s.Logger.Log("Could not cast string to datetime")
+			}
+			maxValUser, err := time.Parse(dateFormat, getMaxBatchColumnValue(ap))
+			if err != nil {
+				s.Logger.Log("Could not cast string to datetime")
 			}
 
-			for i := 0; i < len(batchWhereConditions); i++ {
-				whereConditionsStr := strings.Join(
-					append(ap.Query.FilterConditions, batchWhereConditions[i]),
-					" AND ")
-				sqlTmp := fmt.Sprintf("SELECT * from %s WHERE %s;", ap.Query.Table, whereConditionsStr)
-				//fmt.Println(sqlTmp)
+			minTmp := minValUser
+			for {
+				// Find the minimum value between (minTmp + batchStep) and maxValUser
+				// This is to ensure that the batch does not exceed the user-provided max
+				// value.
+				// e.g., if minTmp is 2023-01-01, batchStep is 10 days, and maxValUser is
+				// 2023-01-05, then the next batch should end at 2023-01-05 and not
+				// 2023-01-11.
+				// This is important to ensure that the last batch does not exceed the
+				// user-provided max value.
 
-				sql = append(sql, sqlTmp)
+				maxTmp := minTmp.AddDate(0, 0, batchStep) // Add batchStep days
+				var maxValBatch time.Time
+				var breakSignal bool = false
+				if maxTmp.Before(maxValUser) {
+					maxValBatch = maxTmp
+				} else {
+					maxValBatch = maxValUser
+					breakSignal = true
+				}
+
+				whereConTmp := fmt.Sprintf(
+					"%s >= '%s' AND %s < '%s'",
+					batchColumn,
+					minTmp.Format(dateFormat),
+					batchColumn,
+					maxValBatch.Format(dateFormat),
+				)
+				batchWhereConditions = append(batchWhereConditions, whereConTmp)
+				minTmp = maxTmp
+
+				// if the upper limit of this batch is the user-provided max value,
+				// then we are done.
+				if breakSignal {
+					break
+				}
 			}
+		}
+
+		for i := 0; i < len(batchWhereConditions); i++ {
+			whereConditionsStr := strings.Join(
+				append(ap.Query.FilterConditions, batchWhereConditions[i]),
+				" AND ")
+			sqlTmp := fmt.Sprintf("SELECT * from %s WHERE %s;", ap.Query.Table, whereConditionsStr)
+			//fmt.Println(sqlTmp)
+
+			sql = append(sql, sqlTmp)
 		}
 	} else {
 		// No batching, single query
